@@ -1,0 +1,104 @@
+# examples/corporate/sim.yaml
+# Run: src run examples/corporate/sim.yaml
+#
+# Corporate office politics simulation.
+# No spatial grid — world is an org graph. Relationships dominate.
+
+engine:
+  ticks: 12
+  seed: 7
+  scheduler: sequential     # sequential = political order matters
+
+llm:
+  model: qwen2.5:14b
+  base_url: http://localhost:11434
+  temperature: 0.9
+
+world:
+  class: examples.corporate.sim.world.CorporateWorld
+
+registry:
+  class: examples.corporate.sim.registry.build_corporate_registry
+
+social:
+  class: src.plugins.builtin.simple_social.social.WeightedGraphSocial
+
+agents:
+  - id: agent_001
+    name: Iris
+    position:
+      department: C-Suite
+      role: executive
+    brain:
+      class: src.plugins.builtin.ollama.brain.OllamaLLMBrain
+      personality:
+        traits: [strategic, demanding, visionary]
+        goals: [hit quarterly targets, neutralize any board opposition]
+        backstory: CEO who clawed her way up through three hostile takeovers. Trusts nobody fully.
+    state_ext:
+      class: examples.corporate.sim.state.EmployeeVitals
+      role: executive
+
+  - id: agent_002
+    name: Marcus
+    position:
+      department: Engineering
+      role: manager
+      manager: agent_001
+    brain:
+      class: src.plugins.builtin.ollama.brain.OllamaLLMBrain
+      personality:
+        traits: [ambitious, technical, impatient]
+        goals: [ship the new platform, get promoted to VP]
+        backstory: Engineering manager who genuinely believes he should be running the company.
+    state_ext:
+      class: examples.corporate.sim.state.EmployeeVitals
+      role: manager
+
+  - id: agent_003
+    name: Priya
+    position:
+      department: Marketing
+      role: manager
+      manager: agent_001
+    brain:
+      class: src.plugins.builtin.ollama.brain.OllamaLLMBrain
+      personality:
+        traits: [diplomatic, perceptive, resilient]
+        goals: [secure the marketing budget, build cross-team influence]
+        backstory: Marketing manager who survived three reorgs by making herself indispensable.
+    state_ext:
+      class: examples.corporate.sim.state.EmployeeVitals
+      role: manager
+
+  - id: agent_004
+    name: Dev
+    position:
+      department: Engineering
+      role: employee
+      manager: agent_002
+    brain:
+      class: src.plugins.builtin.ollama.brain.OllamaLLMBrain
+      personality:
+        traits: [idealistic, anxious, creative]
+        goals: [get the AI project approved, avoid being laid off]
+        backstory: Junior engineer with a breakthrough idea and zero political capital.
+    state_ext:
+      class: examples.corporate.sim.state.EmployeeVitals
+      role: employee
+
+  - id: agent_005
+    name: Zoe
+    position:
+      department: Marketing
+      role: employee
+      manager: agent_003
+    brain:
+      class: src.plugins.builtin.ollama.brain.OllamaLLMBrain
+      personality:
+        traits: [sociable, opportunistic, perceptive]
+        goals: [become the office power broker, collect favors from everyone]
+        backstory: Marketing coordinator who already knows everyone's secrets and isn't afraid to use them.
+    state_ext:
+      class: examples.corporate.sim.state.EmployeeVitals
+      role: employee
