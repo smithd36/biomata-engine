@@ -1,104 +1,404 @@
 # Biomata SDK — Smoke Test
 
-A one-script scene that verifies the SDK compiles into your Unity project and
-talks to a running biomata-engine server. Use this before scaffolding the
-full village demo to confirm Unity ↔ Python end-to-end is healthy.
+A one-script Unity validation scene that proves the Biomata SDK compiles into a Unity project and communicates with a running biomata-engine backend.
+
+Use this before building larger demos (village sim, gameplay prototypes, etc.) to verify Unity ↔ Biomata end-to-end health.
+
+This smoke test validates the intended **host-driven middleware architecture**:
+
+Unity (host runtime)
+→ WebSocket transport
+→ Biomata simulation backend
+→ agent cognition / decisions
+→ event stream
+→ Unity callbacks / action execution
+
+---
 
 ## What it checks
 
-1. The `BiomataSDK` assembly compiles into your project.
-2. `BiomataManager` instantiates and is configurable from a scene.
-3. `ConnectAsync` reaches the server on `localhost:8765` (WebSocket default).
-4. `HealthCheck` round-trips a request/response.
-5. `RegisterAgent` adds one agent (default brain: `IdleBrain`, zero dependencies).
-6. The event stream delivers `tick_end` and `action_completed` events back to the client.
+1. The `BiomataSDK` assembly compiles into Unity.
+2. `BiomataManager` instantiates correctly.
+3. `ConnectAsync()` reaches the Biomata backend over WebSockets.
+4. `HealthCheck` round-trips successfully.
+5. Agent registration works.
+6. Event streaming works (`tick_end`, `action_completed`).
+7. Host-driven ticking works (`TickAsync()`).
+8. Backend decision generation works.
+9. Unity receives and logs simulation events on the main thread.
+
+This is the minimum proof that Biomata can function as **Unity AI simulation middleware**.
+
+---
 
 ## Setup
 
-### 1. Start the Python backend (WebSocket — recommended for Unity 6)
+### 1. Start the Python backend
 
 From the repo root:
 
-```
+```bash
 pip install -e ".[websocket]"
+```
+
+If using example simulations with Python module imports:
+
+```powershell
+$env:PYTHONPATH="C:\path\to\biomata-engine"
+```
+
+Then launch:
+
+```bash
 biomata-ws --config examples/corporate/sim.yaml --port 8765
 ```
 
-You should see `WebSocket server listening on ws://0.0.0.0:8765`.
+Expected output:
 
-> If you'd rather use gRPC for this smoke test, install `.[grpc]` instead,
-> launch `biomata-grpc --port 50051`, and set **Transport = Grpc**,
-> **Port = 50051** on the BiomataSmokeTest Inspector.
+```text
+WebSocket server listening on ws://0.0.0.0:8765
+```
+
+---
 
 ### 2. Add the SDK to a Unity 6 project
 
-Open a Unity 6 project (6.4 / 6000.4.8f1 is the primary target). In
-`Packages/manifest.json` add:
+Primary target:
+
+```text
+Unity 6.x
+(verified with 6000.4.8f1)
+```
+
+Add package via:
+
+**Window → Package Manager → + → Add package from disk…**
+
+Select:
+
+```text
+unity_sdk/package.json
+```
+
+Or add to `Packages/manifest.json`:
 
 ```json
 "com.biomata.sdk": "file:../path/to/biomata-engine/unity_sdk"
 ```
 
-Or use **Window → Package Manager → + → Add package from disk…** and pick
-`unity_sdk/package.json`.
+Unity will automatically install:
 
-The SDK declares `com.unity.nuget.newtonsoft-json` as a dependency — Unity
-will install it automatically from the registry.
+```text
+com.unity.nuget.newtonsoft-json
+```
 
-### 3. Import this sample
+which the WebSocket transport depends on.
 
-In Package Manager, select **Biomata Simulation SDK**, open the **Samples** tab,
-and click **Import** next to **Smoke Test**. The sample lands under
-`Assets/Samples/Biomata Simulation SDK/<version>/Smoke Test/`.
+---
 
-### 4. Run
+### 3. Import the sample
 
-1. Open or create an empty scene.
-2. Create an empty `GameObject` and add the `BiomataSmokeTest` component.
-3. (Optional) Override **Transport / Host / Port / Test Agent Id** in the Inspector.
-4. Press **Play**.
+Package Manager:
 
-The component builds the entire UI at runtime — Canvas, EventSystem, buttons,
-and event log — so the scene needs nothing else.
+**Biomata Simulation SDK → Samples → Import → Smoke Test**
+
+Sample path:
+
+```text
+Assets/Samples/Biomata Simulation SDK/<version>/Smoke Test/
+```
+
+---
+
+### 4. Unity input settings
+
+If buttons throw input exceptions:
+
+Go to:
+
+```text
+Edit → Project Settings → Player → Active Input Handling
+```
+
+Set:
+
+```text
+Both
+```
+
+Then restart Unity.
+
+(Unity 6 defaults to the new Input System only; the runtime-generated sample UI uses classic EventSystem input.)
+
+---
+
+### 5. Run
+
+1. Open or create an empty scene
+2. Create:
+
+```text
+Hierarchy → Create Empty
+```
+
+Name it:
+
+```text
+SmokeTest
+```
+
+3. Add component:
+
+```text
+Biomata → Samples → Smoke Test
+```
+
+4. Configure inspector:
+
+Recommended defaults:
+
+```text
+Transport: WebSocket
+Host: localhost
+Port: 8765
+Test Agent ID: smoke_agent_001
+Brain: IdleBrain
+```
+
+5. Press Play
+
+The sample generates its entire UI at runtime:
+
+- Canvas
+- EventSystem
+- control buttons
+- event log
+- status display
+
+No scene setup required.
+
+---
 
 ## Using the UI
 
-| Button             | What it does                                                            |
-|--------------------|-------------------------------------------------------------------------|
-| **Connect**        | Opens the WebSocket and starts the event stream.                        |
-| **Health Check**   | Calls `Health.CheckAsync()` and prints status, tick, and agent count.   |
-| **Register Agent** | Registers `smoke_agent_001` with an `IdleBrain`.                        |
+| Button | What it does |
+|--------|--------------|
+| **Connect** | Opens WebSocket connection and starts event stream subscription |
+| **Health Check** | Calls backend health endpoint |
+| **Register Agent** | Registers `smoke_agent_001` with `IdleBrain` |
+| **Force Tick** | Executes one host-driven simulation tick |
+| **Pause** | Pauses backend simulation session |
+| **Resume** | Resumes backend simulation session |
 
-The event log shows every `tick_end` and `action_completed` event delivered by
-the stream, plus connection / disconnection notices.
+---
 
 ## Expected output (happy path)
 
-```
-[10:00:01] connecting…
-[10:00:01] connected
-[10:00:03] health: ok state=created tick=0 agents=2
-[10:00:05] registered: smoke_agent_001 (SmokeBot)
-[10:00:06] tick_end @ t1
-[10:00:06] action @ t1: smoke_agent_001 → idle
+### Connection
+
+```text
+[SmokeTest] connecting…
+[SmokeTest] connected
 ```
 
-If the backend was started with `examples/corporate/sim.yaml`, the existing
-config agents (`agents=2`) appear in the health check.
+---
+
+### Health
+
+```text
+[SmokeTest] health: ok state=created tick=0 agents=5
+```
+
+---
+
+### Registration
+
+```text
+[SmokeTest] registered: smoke_agent_001 (SmokeBot)
+```
+
+---
+
+### Tick execution
+
+```text
+[SmokeTest] forcing tick...
+[SmokeTest] tick complete: t1
+```
+
+---
+
+### Decisions
+
+Example:
+
+```text
+[SmokeTest] decision: smoke_agent_001 -> idle
+```
+
+Or, with richer simulations:
+
+```text
+[SmokeTest] decision: agent_004 -> pitch_idea
+[SmokeTest] decision: agent_005 -> gossip
+```
+
+---
+
+### Event streaming
+
+```text
+[SmokeTest] action @ t1: smoke_agent_001 → idle
+[SmokeTest] tick_end @ t1
+```
+
+This proves:
+
+- tick execution
+- backend cognition
+- event propagation
+- Unity event dispatch
+
+---
 
 ## Troubleshooting
 
-| Symptom                                                        | Likely cause / fix                                                                    |
-|----------------------------------------------------------------|---------------------------------------------------------------------------------------|
-| `connect failed: WebSocket connect to ws://localhost:8765 failed` | Python server not running, or wrong port. Start `biomata-ws --port 8765` first.       |
-| `connect failed: Server did not become ready within 15s`       | Server up but health-check failing — check the Python log for binding errors.         |
-| `register failed: import error: …IdleBrain…`                   | The brain class path doesn't resolve on the server. Confirm `pip install -e .` ran.   |
-| Event log shows `tick_end` but no `action_completed`           | Sim is between ticks — register an agent, or trigger ticks from another client.       |
-| Errors about `Newtonsoft.Json` missing                         | Package Manager didn't pull `com.unity.nuget.newtonsoft-json`. Reimport the SDK.      |
+### Connect fails
+
+Example:
+
+```text
+connect failed: WebSocket connect to ws://localhost:8765 failed
+```
+
+Cause:
+
+- backend not running
+- wrong host/port
+- firewall issue
+
+Fix:
+
+```bash
+biomata-ws --port 8765
+```
+
+---
+
+### Backend import errors
+
+Example:
+
+```text
+No module named 'examples'
+```
+
+Cause:
+
+example configs reference Python-imported modules.
+
+Fix:
+
+```powershell
+$env:PYTHONPATH="C:\path\to\biomata-engine"
+```
+
+Or properly package `examples`.
+
+---
+
+### Newtonsoft.Json missing
+
+Errors referencing:
+
+```text
+Newtonsoft.Json
+JObject
+JToken
+```
+
+Cause:
+
+Unity package dependency failed.
+
+Fix:
+
+Reimport package or confirm:
+
+```text
+com.unity.nuget.newtonsoft-json
+```
+
+is installed.
+
+---
+
+### Buttons visible but unclickable
+
+Cause:
+
+Input System mismatch.
+
+Fix:
+
+```text
+Player Settings → Active Input Handling → Both
+```
+
+Restart Unity.
+
+---
+
+### No events after connect
+
+If connected but no ticks:
+
+This is expected.
+
+The smoke test validates **host-driven ticking**, not autonomous backend ticking.
+
+Press:
+
+```text
+Force Tick
+```
+
+to advance simulation.
+
+---
+
+## Architectural note
+
+This sample intentionally validates the host-driven middleware model:
+
+Unity owns:
+
+- scene state
+- update loop
+- visuals
+- gameplay timing
+
+Biomata owns:
+
+- simulation logic
+- cognition
+- decision generation
+- event emission
+
+That separation is intentional and forms the basis for game engine integrations.
+
+---
 
 ## Where to next
 
-Once the smoke test connects end-to-end, the full village demo can rely on the
-same `BiomataManager` instance. The smoke test never assumes anything about
-scene structure or Unity-side observation providers, so it remains a useful
-regression check when those layers grow.
+Once this smoke test passes, the next milestone is visual validation:
+
+**one visible Unity agent moving because Biomata generated a decision.**
+
+After that:
+
+- multi-agent demo scene
+- village simulation
+- action handler expansion
+- performance scaling
+- Unreal / Godot adapters
