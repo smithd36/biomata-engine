@@ -1,0 +1,23 @@
+# examples/visual_demo/sim.yaml
+#
+# Minimal backend for the Unity visual validation demo.
+# Agents are registered dynamically by Unity (no agents declared here).
+# The OllamaLLMBrain personality and llm_config are passed from Unity
+# via AgentRegistration.BrainConfig in the register_agent RPC.
+#
+# Requirements:
+#   Ollama running at localhost:11434 with the configured model.
+#
+# Start:
+#   biomata-ws --config examples/visual_demo/sim.yaml --port 8765
+
+engine:
+  ticks: 9999
+  seed: 42
+  scheduler: simultaneous
+
+world:
+  class: src.plugins.external.world.HostedWorld
+
+registry:
+  class: examples.patrol.sim.registry.build_patrol_registry

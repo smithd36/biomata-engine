@@ -1,0 +1,43 @@
+# examples/patrol/sim.yaml
+#
+# Patrol visual demo — no LLM required.
+# Unity drives ticks via WebSocket; Python returns navigate engine_commands.
+#
+# Start the server:
+#   biomata-ws --config examples/patrol/sim.yaml --port 8765
+#
+# Then import the PatrolDemo sample in Unity and press Play.
+
+engine:
+  ticks: 9999
+  seed: 42
+  scheduler: simultaneous
+
+world:
+  class: src.plugins.external.world.HostedWorld
+
+registry:
+  class: examples.patrol.sim.registry.build_patrol_registry
+
+agents:
+  - id: scout_001
+    name: Scout
+    brain:
+      class: examples.patrol.sim.brain.WaypointBrain
+      waypoints:
+        - [0.0, 0.0]
+        - [8.0, 0.0]
+        - [8.0, 8.0]
+        - [0.0, 8.0]
+      arrival_threshold: 0.8
+
+  - id: guard_001
+    name: Guard
+    brain:
+      class: examples.patrol.sim.brain.WaypointBrain
+      waypoints:
+        - [4.0, -4.0]
+        - [-4.0, -4.0]
+        - [-4.0, 4.0]
+        - [4.0,  4.0]
+      arrival_threshold: 0.8

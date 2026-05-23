@@ -31,10 +31,12 @@ namespace Biomata.Integration
         // ── Inspector ─────────────────────────────────────────────────────────────
 
         [Header("Connection")]
-        [SerializeField] private string host                  = "localhost";
-        [SerializeField] private int    port                  = 50051;
-        [SerializeField] private bool   useTls                = false;
-        [SerializeField] private float  connectTimeoutSeconds = 10f;
+        [Tooltip("Wire-level transport. WebSocket (default) pairs with biomata-ws on port 8765; gRPC pairs with biomata-grpc on port 50051.")]
+        [SerializeField] private TransportKind transport          = TransportKind.WebSocket;
+        [SerializeField] private string        host               = "localhost";
+        [SerializeField] private int           port               = 8765;
+        [SerializeField] private bool          useTls             = false;
+        [SerializeField] private float         connectTimeoutSeconds = 10f;
 
         [Header("Simulation")]
         [Tooltip("Connect to the backend automatically on scene start.")]
@@ -183,6 +185,7 @@ namespace Biomata.Integration
 
             var config = new BiomataConfig
             {
+                Transport             = transport,
                 Host                  = host,
                 Port                  = port,
                 UseTls                = useTls,
