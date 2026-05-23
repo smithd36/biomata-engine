@@ -102,7 +102,6 @@ config.local.yaml
 
 # LLM / model cache
 .ollama/
-models/
 .cache/ollama/
 
 # Type check / build artifacts
@@ -116,5 +115,3 @@ coverage.xml
 # Generated docs
 docs/_build/
 site/
-CLAUDE.md
-MEMORY.md
