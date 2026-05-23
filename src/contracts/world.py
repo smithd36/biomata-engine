@@ -126,3 +126,62 @@ class PlaceableWorld(Protocol):
     Optional — if absent, the loader skips placement entirely.
     """
     def place_agent(self, agent_id: str, **kwargs: Any) -> None: ...
+
+
+@runtime_checkable
+class ExternalWorld(World, Protocol):
+    """
+    World whose authoritative state is owned by an external host
+    (game engine, physics server, remote simulation, test harness).
+
+    Inverts the normal data-flow: instead of Python computing observations
+    from local state, the host pushes observations in; instead of Python
+    mutating world state, structured commands flow back out.
+
+    Data flow per tick:
+        Host → Python : push_observation(), push_metadata()   (before run_tick)
+        Python → Host : collect_commands()                    (after  run_tick)
+
+    The engine itself never calls push_* or collect_commands — those are for
+    the integrator layer sitting between the host and the Simulation.
+
+    isinstance(world, ExternalWorld) returns True when all three methods are
+    present, which is the recommended way to detect external-world mode.
+    """
+
+    def push_observation(self, agent_id: str, observation: dict[str, Any]) -> None:
+        """
+        Inject the host's current perception for agent_id.
+        Called once per agent before each sim.run_tick().
+
+        The observation dict is returned verbatim from World.observe() and
+        then merged with agent identity fields by AgentRuntime. Include
+        'nearby_agents' here if the host tracks per-agent visibility:
+
+            [{"id": "a2", "name": "Bob", "inventory": {}, "ext": {}}]
+
+        The engine will use this list as-is rather than calling
+        VisibilityWorld.get_nearby_agents().
+        """
+        ...
+
+    def push_metadata(self, metadata: dict[str, Any]) -> None:
+        """
+        Inject world-level metadata for the upcoming tick.
+        Replaces any previously pushed metadata in its entirety.
+        Appears in World.metadata and therefore in BrainContext.metadata.
+        """
+        ...
+
+    def collect_commands(self) -> list[dict[str, Any]]:
+        """
+        Drain and return engine_commands accumulated during the last tick.
+        Each entry includes the originating agent_id plus handler-defined fields.
+
+        Format (defined by ActionHandlers, not core engine):
+            {"agent_id": "agent_001", "type": "navigate", "destination": {...}}
+
+        Clears the internal buffer — intended to be called exactly once per tick.
+        Returns [] when no commands were produced.
+        """
+        ...

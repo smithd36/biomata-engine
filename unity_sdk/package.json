@@ -1,0 +1,33 @@
+{
+  "name": "com.biomata.sdk",
+  "version": "0.5.0",
+  "displayName": "Biomata Simulation SDK",
+  "description": "Client SDK for driving biomata-engine autonomous agent simulations from Unity. Default transport is JSON over WebSocket (Unity 6-friendly, works on every platform including WebGL).",
+  "unity": "6000.0",
+  "documentationUrl": "",
+  "changelogUrl": "CHANGELOG.md",
+  "licensesUrl": "",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1"
+  },
+  "keywords": [
+    "simulation",
+    "ai",
+    "npc",
+    "websocket",
+    "grpc",
+    "agents"
+  ],
+  "author": {
+    "name": "Biomata",
+    "email": "",
+    "url": ""
+  },
+  "samples": [
+    {
+      "displayName": "Smoke Test",
+      "description": "Minimal scene that verifies the SDK compiles and connects to a running biomata-engine server (biomata-ws or biomata-grpc). Provides Connect / Health Check / Register Agent buttons and a live event log.",
+      "path": "Samples~/SmokeTest"
+    }
+  ]
+}

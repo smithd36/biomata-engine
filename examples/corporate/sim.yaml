@@ -5,7 +5,7 @@
 # No spatial grid — world is an org graph. Relationships dominate.
 
 engine:
-  ticks: 12
+  ticks: 4
   seed: 7
   scheduler: sequential     # sequential = political order matters
 

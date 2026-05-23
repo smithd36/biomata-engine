@@ -66,9 +66,16 @@ class ActionResult:
     outcome_text:     str                           # human-readable log line
     state_mutations:  dict[str, Any] = field(default_factory=dict)
     side_effects:     list[dict]     = field(default_factory=list)
+    engine_commands:  list[dict]     = field(default_factory=list)
     # side_effect shapes:
     #   {"type": "social",  "from": id, "to": id, "delta": float}
     #   {"type": "event",   ...}   — future extensibility
+    #
+    # engine_commands shapes (host-defined; opaque to core engine):
+    #   {"type": "navigate",      "destination": {...}}
+    #   {"type": "set_animation", "clip": "walk"}
+    #   {"type": "play_sound",    "clip": "attack_hit"}
+    # Consumed by ExternalWorld.collect_commands() or TickSummary.engine_commands().
 
 
 # ── ActionHandler ─────────────────────────────────────────────────────────────

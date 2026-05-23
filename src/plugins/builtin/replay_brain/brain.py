@@ -39,6 +39,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import pickle
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -148,6 +149,33 @@ class ReplayBrain:
         module = importlib.import_module(mod_path)
         cls    = getattr(module, cls_name)
         return cls(llm_config=llm_config or {}, **raw)
+
+    # ── Snapshotable ───────────────────────────────────────────────────────────
+
+    def serialize(self) -> bytes:
+        """
+        Capture replay cursor positions so simulation can resume from exactly
+        the same point in the JSONL file after a restore.
+
+        In record mode, the cursor dict is empty (nothing to restore); the
+        partially-written output file is left intact and will be appended to
+        on resume — callers should flush or close the file before snapshotting
+        if strict replay fidelity is required.
+        """
+        return pickle.dumps({
+            "mode":    self.mode,
+            "cursors": dict(self._cursors),
+        })
+
+    def restore(self, data: bytes) -> None:
+        """
+        Restore cursor positions. Only applied when the stored mode matches
+        the current mode; a mismatch (e.g. restoring a record snapshot into a
+        replay brain) is silently ignored to avoid corrupting state.
+        """
+        state = pickle.loads(data)
+        if state.get("mode") == self.mode:
+            self._cursors = defaultdict(int, state.get("cursors", {}))
 
     # ── Cleanup ────────────────────────────────────────────────────────────────
 

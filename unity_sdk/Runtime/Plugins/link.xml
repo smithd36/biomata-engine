@@ -1,0 +1,27 @@
+<!--
+  link.xml — prevents IL2CPP managed-code stripping from removing types and
+  methods that the gRPC/Protobuf runtime accesses via reflection.
+
+  Without this, standalone (Mono or IL2CPP) builds may pass in Editor but fail
+  at runtime when reflection-based descriptor lookups can't find their types.
+  Editor / Play Mode is unaffected — stripping is a build-time step.
+-->
+<linker>
+  <assembly fullname="Google.Protobuf"                            preserve="all"/>
+  <assembly fullname="Grpc.Core.Api"                              preserve="all"/>
+  <assembly fullname="Grpc.Net.Common"                            preserve="all"/>
+  <assembly fullname="Grpc.Net.Client"                            preserve="all"/>
+  <assembly fullname="System.IO.Pipelines"                        preserve="all"/>
+  <assembly fullname="System.Diagnostics.DiagnosticSource"        preserve="all"/>
+  <assembly fullname="Microsoft.Extensions.Logging.Abstractions"  preserve="all"/>
+  <!--
+    Preserve System.Net.Http types that Grpc.Net.Client uses via
+    HttpClientHandler / SocketsHttpHandler factories.
+  -->
+  <assembly fullname="System.Net.Http">
+    <type fullname="System.Net.Http.HttpClient"             preserve="all"/>
+    <type fullname="System.Net.Http.HttpClientHandler"      preserve="all"/>
+    <type fullname="System.Net.Http.SocketsHttpHandler"     preserve="all"/>
+    <type fullname="System.Net.Http.HttpMessageHandler"     preserve="all"/>
+  </assembly>
+</linker>

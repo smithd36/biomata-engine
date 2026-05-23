@@ -7,6 +7,8 @@ Moved from core/social.py — it's a plugin, not engine infrastructure.
 """
 from __future__ import annotations
 
+import pickle
+
 import networkx as nx
 
 
@@ -37,3 +39,19 @@ class WeightedGraphSocial:
             label = "ally" if w > 0.3 else "enemy" if w < -0.3 else "neutral"
             lines.append(f"{name}: {label} ({w:+.2f})")
         return ", ".join(lines) if lines else "No relationships yet."
+
+    # ── Snapshotable ──────────────────────────────────────────────────────────
+
+    def serialize(self) -> bytes:
+        return pickle.dumps({
+            "nodes": list(self.g.nodes(data=True)),
+            "edges": list(self.g.edges(data=True)),
+        })
+
+    def restore(self, data: bytes) -> None:
+        state     = pickle.loads(data)
+        self.g    = nx.DiGraph()
+        for node_id, attrs in state["nodes"]:
+            self.g.add_node(node_id, **attrs)
+        for u, v, attrs in state["edges"]:
+            self.g.add_edge(u, v, **attrs)

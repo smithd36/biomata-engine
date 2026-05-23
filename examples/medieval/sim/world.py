@@ -6,6 +6,7 @@ Grid-based, with seasons, weather, and resource regeneration.
 """
 from __future__ import annotations
 
+import pickle
 import random as _random_module
 from dataclasses import dataclass, field
 from typing import Any
@@ -106,6 +107,32 @@ class MedievalWorld:
                 target.inventory[item] = max(0, target.inventory.get(item, 0) + delta)
         if "target_health_delta" in m and target.state_ext:
             target.state_ext.apply_mutations({"health_delta": m["target_health_delta"]})
+
+    # ── Snapshotable ──────────────────────────────────────────────────────────
+
+    def serialize(self) -> bytes:
+        """
+        Capture world state: tick, season, weather, cell resources, and agent
+        positions (stored as string occupant IDs inside the Grid, so pickling
+        the Grid does not pull in live Agent objects).
+        _agents is NOT serialized — Simulation.restore() re-registers agents.
+        """
+        return pickle.dumps({
+            "tick":    self._tick,
+            "season":  self.season,
+            "weather": self.weather,
+            "grid":    self.grid,
+            "events":  self.events,
+        })
+
+    def restore(self, data: bytes) -> None:
+        state        = pickle.loads(data)
+        self._tick   = state["tick"]
+        self.season  = state["season"]
+        self.weather = state["weather"]
+        self.grid    = state["grid"]
+        self.events  = state["events"]
+        # self._agents and self.rng are re-bound by Simulation.restore()
 
     # ── Display helpers (example-specific, not part of the World protocol) ────
 

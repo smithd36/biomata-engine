@@ -1,0 +1,16 @@
+{
+    "name": "BiomataIntegration",
+    "rootNamespace": "Biomata.Integration",
+    "references": [
+        "BiomataSDK"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

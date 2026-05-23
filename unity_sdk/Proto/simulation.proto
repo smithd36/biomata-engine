@@ -1,0 +1,227 @@
+syntax = "proto3";
+
+package biomata;
+
+import "google/protobuf/struct.proto";
+
+// Unity C# and Java namespace hints — not required by the Python server
+option csharp_namespace = "Biomata.Proto";
+option java_package     = "com.biomata.proto";
+option java_outer_classname = "SimulationProto";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SimulationService
+//
+// Primary gRPC service for driving biomata-engine from an external host
+// (Unity, Unreal, test harness). All state is authoritative in the Python
+// simulation; the host sends observations in and receives decisions out.
+// ─────────────────────────────────────────────────────────────────────────────
+
+service SimulationService {
+  // Liveness probe — returns session state and tick counter.
+  rpc HealthCheck      (HealthCheckRequest)      returns (HealthCheckResponse);
+
+  // Dynamically add an agent to the running simulation.
+  rpc RegisterAgent    (RegisterAgentRequest)    returns (RegisterAgentResponse);
+
+  // Dynamically remove an agent from the running simulation.
+  rpc RemoveAgent      (RemoveAgentRequest)      returns (RemoveAgentResponse);
+
+  // Push one agent's current world-state before the next tick.
+  // Accumulates alongside TickRequest.agent_observations.
+  rpc SendObservation  (SendObservationRequest)  returns (SendObservationResponse);
+
+  // Execute one cognition tick. Inline observations override any previously
+  // sent via SendObservation for the same agent_id.
+  rpc TickSimulation   (TickRequest)             returns (TickResponse);
+
+  // Suspend the autonomous run() loop after the current tick completes.
+  rpc PauseSimulation  (PauseRequest)            returns (PauseResponse);
+
+  // Resume a paused autonomous run() loop.
+  rpc ResumeSimulation (ResumeRequest)           returns (ResumeResponse);
+
+  // Capture a complete, serialized snapshot of simulation state.
+  rpc Snapshot         (SnapshotRequest)         returns (SnapshotResponse);
+
+  // Restore simulation state from a previously captured snapshot.
+  rpc Restore          (RestoreRequest)          returns (RestoreResponse);
+
+  // Server-side streaming: receive real-time engine events.
+  // The stream stays open until the client disconnects.
+  rpc StreamEvents     (StreamEventsRequest)     returns (stream EventMessage);
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Health
+// ─────────────────────────────────────────────────────────────────────────────
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  string status        = 1;  // Always "ok" for a live server.
+  string session_state = 2;  // One of: created, running, paused, stopped, error
+  int32  tick          = 3;  // Current simulation tick.
+  int32  agent_count   = 4;  // Number of registered agents.
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Agent registration
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Configuration block for one agent.
+// brain_class / memory_class are fully-qualified Python dotted paths.
+// brain_config / memory_config are passed as **kwargs to the class constructor.
+message AgentConfig {
+  string                   agent_id     = 1;
+  string                   agent_name   = 2;
+  string                   brain_class  = 3;
+  google.protobuf.Struct   brain_config = 4;
+  string                   memory_class = 5;  // optional; defaults to SimpleMemory
+  google.protobuf.Struct   memory_config = 6;
+}
+
+message RegisterAgentRequest {
+  AgentConfig config = 1;
+}
+
+message RegisterAgentResponse {
+  bool   success = 1;
+  string error   = 2;  // non-empty on failure
+}
+
+message RemoveAgentRequest {
+  string agent_id = 1;
+}
+
+message RemoveAgentResponse {
+  bool   success = 1;
+  string error   = 2;
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Observations
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Per-agent world observation pushed by the host before each tick.
+// observation keys are domain-specific (location, nearby_agents, etc.).
+message AgentObservation {
+  string                 agent_id    = 1;
+  google.protobuf.Struct observation = 2;
+}
+
+message SendObservationRequest {
+  string                 agent_id    = 1;
+  google.protobuf.Struct observation = 2;
+}
+
+message SendObservationResponse {
+  bool   success = 1;
+  string error   = 2;
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tick
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Request: run one cognition cycle.
+// agent_observations — inline per-agent state; merged with any pushed via
+//                      SendObservation (inline wins on conflict).
+// world_metadata     — global world state shared across all agents.
+message TickRequest {
+  repeated AgentObservation agent_observations = 1;
+  google.protobuf.Struct    world_metadata     = 2;
+}
+
+// One agent's decision output for the tick.
+// engine_commands — list of Struct objects; each has at minimum a "type" key.
+//                   Shape is handler-defined (e.g. {"type":"navigate","dir":"north"}).
+message AgentDecision {
+  string                        agent_id        = 1;
+  string                        agent_name      = 2;
+  string                        action          = 3;
+  google.protobuf.Struct        parameters      = 4;
+  string                        outcome_text    = 5;
+  repeated google.protobuf.Struct engine_commands = 6;
+  string                        error           = 7;  // empty on success
+}
+
+// Per-agent step error (agent stepped but raised an unhandled exception).
+message AgentError {
+  string agent_id = 1;
+  string message  = 2;
+}
+
+message TickResponse {
+  int32                 tick      = 1;
+  repeated AgentDecision decisions = 2;
+  repeated AgentError   errors    = 3;
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lifecycle
+// ─────────────────────────────────────────────────────────────────────────────
+
+message PauseRequest  {}
+message PauseResponse  {
+  bool   success = 1;
+  string state   = 2;  // session state after the call
+}
+
+message ResumeRequest {}
+message ResumeResponse {
+  bool   success = 1;
+  string state   = 2;
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Snapshot / Restore
+// ─────────────────────────────────────────────────────────────────────────────
+
+message SnapshotRequest {}
+
+// snapshot_data is an opaque, pickle-serialized SimulationSnapshot.
+// Pass it verbatim to RestoreRequest.snapshot_data to restore.
+message SnapshotResponse {
+  bytes  snapshot_data = 1;
+  int32  tick          = 2;
+  string created_at    = 3;  // ISO-8601 UTC timestamp
+}
+
+message RestoreRequest {
+  bytes snapshot_data = 1;
+}
+
+message RestoreResponse {
+  bool   success = 1;
+  int32  tick    = 2;
+  string error   = 3;
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Event streaming
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Subscribe to a live stream of engine events.
+// event_types — filter to specific event type strings (e.g. ["tick_end",
+//               "action_completed"]). Empty list = all events.
+message StreamEventsRequest {
+  repeated string event_types = 1;
+}
+
+// One engine event crossing the transport boundary.
+// data keys are event-type-specific (see src/engine/event_bus.py constants).
+message EventMessage {
+  string                 session_id  = 1;
+  string                 event_type  = 2;
+  int32                  tick        = 3;
+  string                 agent_id    = 4;
+  google.protobuf.Struct data        = 5;
+}

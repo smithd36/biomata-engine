@@ -17,3 +17,11 @@ from .medieval import (
     MedievalVitals, 
     MedievalWorld
 )
+
+from .corporate import (
+    CorporateWorld,
+    EmployeeVitals,
+    build_corporate_registry,
+    CorporateDisplaySubscriber, 
+    CorporateSummaryPrinter
+)

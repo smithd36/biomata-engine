@@ -12,6 +12,7 @@ Key differences from the medieval spatial world:
 """
 from __future__ import annotations
 
+import pickle
 import random as _random_module
 from collections import deque
 from typing import Any
@@ -161,6 +162,42 @@ class CorporateWorld:
         # General state extension mutations on target
         if "target_state_mutations" in m and target.state_ext:
             target.state_ext.apply_mutations(m["target_state_mutations"])
+
+    # ── Snapshotable ──────────────────────────────────────────────────────────
+
+    def serialize(self) -> bytes:
+        """
+        Capture org graph, roles, departments, and event log.
+        The org graph stores only agent_id strings, so pickling it does not
+        pull in live Agent objects.
+        _agents is NOT serialized — Simulation.restore() re-registers agents.
+        """
+        return pickle.dumps({
+            "tick":        self._tick,
+            "quarter":     self.quarter,
+            "market":      self.market,
+            "graph_nodes": list(self.graph.nodes(data=True)),
+            "graph_edges": list(self.graph.edges(data=True)),
+            "departments": dict(self.departments),
+            "roles":       dict(self.roles),
+            "events":      list(self._events),
+        })
+
+    def restore(self, data: bytes) -> None:
+        import networkx as nx
+        state             = pickle.loads(data)
+        self._tick        = state["tick"]
+        self.quarter      = state["quarter"]
+        self.market       = state["market"]
+        self.departments  = state["departments"]
+        self.roles        = state["roles"]
+        self._events      = deque(state["events"], maxlen=30)
+        self.graph        = nx.DiGraph()
+        for node_id, attrs in state["graph_nodes"]:
+            self.graph.add_node(node_id, **attrs)
+        for u, v, attrs in state["graph_edges"]:
+            self.graph.add_edge(u, v, **attrs)
+        # self._agents and self.rng are re-bound by Simulation.restore()
 
     # ── Display helpers (not part of the protocol) ────────────────────────────
 

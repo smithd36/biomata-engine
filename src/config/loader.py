@@ -198,4 +198,5 @@ def _build_simulation(cfg: dict, base_dir: str = ".") -> "Simulation":  # noqa: 
         bus       = bus,
         scheduler = scheduler,
         config    = sim_cfg,
+        social    = social,
     )

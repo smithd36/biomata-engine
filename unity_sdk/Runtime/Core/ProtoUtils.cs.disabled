@@ -1,0 +1,127 @@
+// Biomata.SDK — ProtoUtils.cs
+// Conversions between C# dictionaries and protobuf Struct / Value.
+//
+// protobuf Struct only holds JSON-compatible values:
+//   string, double, bool, null, nested Struct, ListValue.
+//
+// Inbound (proto → C#):  ProtoUtils.FromStruct(s)  → Dictionary<string, object>
+// Outbound (C# → proto): ProtoUtils.ToStruct(d)    → Struct
+
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using Google.Protobuf.Collections;
+using Google.Protobuf.WellKnownTypes;
+
+namespace Biomata.SDK
+{
+    public static class ProtoUtils
+    {
+        // ── C# → proto ────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Convert a C# dictionary to a protobuf <see cref="Struct"/>.
+        /// Nested <c>Dictionary&lt;string, object&gt;</c> and
+        /// <c>IList</c> values are recursively converted.
+        /// Unrecognised types are stringified via <c>ToString()</c>.
+        /// </summary>
+        public static Struct ToStruct(IDictionary<string, object> dict)
+        {
+            var s = new Struct();
+            if (dict == null) return s;
+            foreach (var kv in dict)
+                s.Fields[kv.Key] = ToValue(kv.Value);
+            return s;
+        }
+
+        /// <summary>Convert a single C# value to a protobuf <see cref="Value"/>.</summary>
+        public static Value ToValue(object obj)
+        {
+            if (obj == null)                                 return Value.ForNull();
+            if (obj is bool b)                               return Value.ForBool(b);
+            if (obj is int  i)                               return Value.ForNumber(i);
+            if (obj is long l)                               return Value.ForNumber(l);
+            if (obj is float f)                              return Value.ForNumber(f);
+            if (obj is double d)                             return Value.ForNumber(d);
+            if (obj is string s)                             return Value.ForString(s);
+            if (obj is IDictionary<string, object> dictObj)  return Value.ForStruct(ToStruct(dictObj));
+            if (obj is IList list)
+            {
+                var items = new Value[list.Count];
+                for (int j = 0; j < list.Count; j++)
+                    items[j] = ToValue(list[j]);
+                return Value.ForList(items);
+            }
+            // Fallback: coerce to string so the transport never throws.
+            return Value.ForString(obj.ToString());
+        }
+
+        // ── proto → C# ────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Convert a protobuf <see cref="Struct"/> to a C# dictionary.
+        /// Returns an empty dictionary for a null or empty Struct.
+        ///
+        /// Pre-sizes the dictionary to the field count to avoid resize-rehash
+        /// during fill. Uses an explicit loop rather than LINQ <c>ToDictionary</c>
+        /// to avoid the per-call IEnumerator allocation.
+        /// </summary>
+        public static Dictionary<string, object> FromStruct(Struct s)
+        {
+            if (s == null) return new Dictionary<string, object>();
+            var fields = s.Fields;
+            var result = new Dictionary<string, object>(fields.Count);
+            foreach (var kv in fields)
+                result[kv.Key] = FromValue(kv.Value);
+            return result;
+        }
+
+        /// <summary>Convert a protobuf <see cref="Value"/> to a C# object.</summary>
+        public static object FromValue(Value v)
+        {
+            if (v == null) return null;
+            switch (v.KindCase)
+            {
+                case Value.KindOneofCase.NullValue:   return null;
+                case Value.KindOneofCase.BoolValue:   return v.BoolValue;
+                case Value.KindOneofCase.NumberValue: return v.NumberValue;
+                case Value.KindOneofCase.StringValue: return v.StringValue;
+                case Value.KindOneofCase.StructValue: return FromStruct(v.StructValue);
+                case Value.KindOneofCase.ListValue:
+                {
+                    // Explicit loop replaces Select(...).ToList<object>() —
+                    // avoids LINQ iterator + delegate allocations per call.
+                    var values = v.ListValue.Values;
+                    var list   = new List<object>(values.Count);
+                    foreach (var item in values)
+                        list.Add(FromValue(item));
+                    return list;
+                }
+                default: return null;
+            }
+        }
+
+        // ── Convenience helpers ───────────────────────────────────────────────
+
+        /// <summary>
+        /// Get a string field from a dict returned by <see cref="FromStruct"/>,
+        /// returning <paramref name="fallback"/> if missing or wrong type.
+        /// </summary>
+        public static string GetString(this Dictionary<string, object> dict, string key, string fallback = "")
+            => dict.TryGetValue(key, out var v) && v is string s ? s : fallback;
+
+        /// <summary>Get a numeric field, returning <paramref name="fallback"/> if missing.</summary>
+        public static double GetNumber(this Dictionary<string, object> dict, string key, double fallback = 0.0)
+            => dict.TryGetValue(key, out var v) && v is double d ? d : fallback;
+
+        /// <summary>Get a bool field, returning <paramref name="fallback"/> if missing.</summary>
+        public static bool GetBool(this Dictionary<string, object> dict, string key, bool fallback = false)
+            => dict.TryGetValue(key, out var v) && v is bool b ? b : fallback;
+
+        /// <summary>Get a nested dict, returning empty dict if missing.</summary>
+        public static Dictionary<string, object> GetDict(this Dictionary<string, object> dict, string key)
+            => dict.TryGetValue(key, out var v) && v is Dictionary<string, object> d
+                ? d
+                : new Dictionary<string, object>();
+    }
+}

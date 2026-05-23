@@ -11,6 +11,7 @@ Swap this out entirely for a different genre:
 """
 from __future__ import annotations
 
+import pickle
 from dataclasses import dataclass
 from typing import Any
 
@@ -91,6 +92,21 @@ class MedievalVitals:
         if self.energy < 50:
             return _ADVICE["tired"]
         return _ADVICE["fine"]
+
+    # ── Snapshotable ──────────────────────────────────────────────────────────
+
+    def serialize(self) -> bytes:
+        return pickle.dumps({
+            "health": self.health,
+            "hunger": self.hunger,
+            "energy": self.energy,
+        })
+
+    def restore(self, data: bytes) -> None:
+        d           = pickle.loads(data)
+        self.health = d["health"]
+        self.hunger = d["hunger"]
+        self.energy = d["energy"]
 
     # ── Auto-eat convenience (called by simulation, not engine) ───────────────
     def maybe_auto_eat(self, inventory: dict[str, Any]) -> int:

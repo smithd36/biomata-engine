@@ -74,10 +74,16 @@ class EventBus:
             self._subs[event_type] = [s for s in self._subs[event_type] if s is not fn]
 
     def emit(self, event: Event) -> None:
-        for fn in self._subs.get(event.type, []):
-            fn(event)
-        for fn in self._subs.get("*", []):
-            fn(event)
+        # Hot path — called O(agents × events_per_agent) per tick.
+        # Avoid allocating empty-list defaults and prefer `is not None` over truthiness.
+        subs = self._subs.get(event.type)
+        if subs is not None:
+            for fn in subs:
+                fn(event)
+        wildcard = self._subs.get("*")
+        if wildcard is not None:
+            for fn in wildcard:
+                fn(event)
 
     def clear(self) -> None:
         self._subs.clear()

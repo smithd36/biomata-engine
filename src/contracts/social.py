@@ -20,3 +20,11 @@ class SocialSystem(Protocol):
     def describe(self, agent_id: str) -> str:
         """Human-readable summary of this agent's relationships."""
         ...
+
+    def serialize(self) -> bytes:
+        """Capture the full relationship graph as opaque bytes for snapshotting."""
+        ...
+
+    def restore(self, data: bytes) -> None:
+        """Restore the relationship graph from bytes produced by serialize()."""
+        ...
