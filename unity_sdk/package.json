@@ -35,8 +35,8 @@
       "path": "Samples~/PatrolDemo"
     },
     {
-      "displayName": "Visual Validation Demo",
-      "description": "Full LLM pipeline demo: OllamaLLMBrain drives a cube NPC to navigate in Unity via WebSocket. Connect → Register Agent → watch the cube move based on LLM decisions. Backend: biomata-ws --config examples/visual_demo/sim.yaml --port 8765.",
+      "displayName": "Visual Demo",
+      "description": "Two demos in one sample. VisualValidationDemo: full LLM pipeline — OllamaLLMBrain drives one cube via WebSocket. MultiAgentOrchestrationDemo: 20 colored cubes patrolling simultaneously via WaypointBrain, proving concurrent multi-agent orchestration. Backend: biomata-ws --config examples/visual_demo/sim.yaml --port 8765.",
       "path": "Samples~/VisualDemo"
     }
   ]

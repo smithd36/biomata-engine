@@ -1,4 +1,19 @@
-# Biomata SDK — Visual Validation Demo
+# Biomata SDK — Visual Demo
+
+This sample contains two components. Use the one that matches your goal.
+
+| Component | Agents | Brain | Purpose |
+|-----------|--------|-------|---------|
+| `VisualValidationDemo` | 1 | `OllamaLLMBrain` | Prove the full LLM pipeline end-to-end |
+| `MultiAgentOrchestrationDemo` | 20 | `WaypointBrain` | Prove concurrent multi-agent orchestration |
+
+Both use the same Python backend: `biomata-ws --config examples/visual_demo/sim.yaml --port 8765`
+
+---
+
+# Visual Validation Demo (single agent, LLM)
+
+End-to-end proof that a real LLM drives visible gameplay in Unity:
 
 End-to-end proof that a real LLM drives visible gameplay in Unity:
 
@@ -250,3 +265,143 @@ Python never knows about Unity. It sees `position_x` / `position_z` floats, call
 - **Swap the model** — `llama3.2:3b` for speed; `qwen2.5:32b` for richer reasoning
 - **Extend the observation** — add inventory or nearby-agent data in `TransformObservationProvider` and the LLM will reason about it
 - **Add action handlers** — register new action names (e.g. `interact`, `speak`) in the Python registry and teach the LLM about them via the personality `goals`
+- **Scale to many agents** — see `MultiAgentOrchestrationDemo` in this sample
+
+---
+
+---
+
+# Multi-Agent Orchestration Demo (20 agents, WaypointBrain)
+
+Proves that Biomata orchestrates many agents concurrently through a single WebSocket session.
+
+```
+Python WaypointBrain × 20 → navigate engine_commands (simultaneous)
+  → WebSocket transport (single connection)
+    → 20 MoveActionHandlers → 20 cubes patrolling simultaneously
+```
+
+20 colored cubes arranged in a 4×5 grid each patrol a small square loop around their grid position. All 20 registrations are sent in parallel at connect time. Python processes them in one tick cycle using `SimultaneousScheduler`.
+
+No LLM required — `WaypointBrain` is pure Python arithmetic, so 3–5 Hz tick rates are achievable with no warmup time.
+
+---
+
+## What you see
+
+- **20 cubes** filling a 4×5 grid — each a unique color from the HSV wheel
+- Dim **cylinder markers** at each cube's four waypoints showing the patrol square
+- Cubes **brighten** when actively moving, return to base color on arrival
+- **Indicator grid** (top-left UI): 20 small colored squares that mirror the moving/idle state in real time
+- **Stats panel** (top-right UI): Registered count, total ticks, total decisions, currently-moving count
+- **Event log** (bottom): registration confirmations, then a line per tick showing decision count
+
+---
+
+## Setup
+
+### 1. Start the Python backend
+
+```bash
+pip install -e ".[websocket]"
+```
+
+```powershell
+$env:PYTHONPATH="C:\path\to\biomata-engine"
+```
+
+```bash
+biomata-ws --config examples/visual_demo/sim.yaml --port 8765
+```
+
+The `sim.yaml` starts with no agents — all 20 are registered dynamically from Unity.
+
+### 2. Add the SDK and import the Visual Demo sample
+
+Same steps as the Visual Validation Demo above.
+
+### 3. Run
+
+1. Open or create an empty scene
+2. Create empty GameObject → add component: **Biomata → Samples → Multi-Agent Orchestration Demo**
+3. Configure Inspector (defaults work for a local backend)
+4. Press Play → click **Connect** → watch all 20 cubes begin patrolling
+
+---
+
+## Inspector reference
+
+| Field | Default | Notes |
+|-------|---------|-------|
+| Host | `localhost` | Backend hostname or IP |
+| Port | `8765` | Must match `--port` on backend |
+| Transport | `WebSocket` | `WebSocket` pairs with `biomata-ws` |
+| Tick Rate | `3` | Ticks/s — safe to push to 5 for local backends |
+| Move Speed | `5` | Units/s for cube movement |
+| Waypoint Radius | `3` | Radius of each cube's square patrol loop |
+| Grid Spacing | `9` | World-space distance between grid centres |
+
+---
+
+## Expected output
+
+### After Connect
+
+```text
+[14:10:01] registered agent_001 (A01)
+[14:10:01] registered agent_002 (A02)
+...
+[14:10:02] registered agent_020 (A20)
+```
+
+All 20 cubes begin moving within 1–2 seconds.
+
+### Per tick
+
+```text
+[14:10:03] t1: 20 decisions
+[14:10:03] t2: 20 decisions
+[14:10:04] t3: 20 decisions
+```
+
+Stats panel updates in real time: `Moving: 15 / 20` etc.
+
+---
+
+## Troubleshooting
+
+### Some agents never start moving
+
+Python's `SimultaneousScheduler` processes all agents each tick. If an agent isn't moving it likely wasn't registered successfully — check the event log for `registered agent_XXX` confirmations. If missing, the backend returned an error; restart the backend and press Play again.
+
+### Connect → immediate disconnect
+
+Backend not running. Verify:
+
+```bash
+biomata-ws --config examples/visual_demo/sim.yaml --port 8765
+```
+
+### "No module named 'examples'"
+
+```powershell
+$env:PYTHONPATH="C:\path\to\biomata-engine"
+```
+
+### Cubes overlap
+
+`Grid Spacing` is too small relative to `Waypoint Radius`. The rule: `gridSpacing > 2 × waypointRadius`. At defaults (9 and 3) there is 3 units of clearance between patrol squares.
+
+---
+
+## Architecture note
+
+`MultiAgentOrchestrationDemo` builds the entire scene at runtime — no prefabs, no authoring:
+
+- `UnitySimulationManager` drives the tick loop at `tickRate` Hz
+- Per-cube stack (×20): `TransformObservationProvider` → `ObservationCollector` → `MoveActionHandler` → `ActionExecutor` → `UnityAgentBridge`
+- All 20 bridges have `autoRegister = false`; parallel `RegisterAsync` calls in `RegisterAllAgents()` send `WaypointBrain` + waypoint config simultaneously
+- Python receives 20 concurrent registration RPCs, creates 20 `WaypointBrain` instances, and processes them each tick via `SimultaneousScheduler`
+- Waypoints are passed as `BrainConfig["waypoints"]` (list of `[x, z]` float arrays), deserialized directly into `WaypointBrain.__init__(waypoints=...)`
+
+The indicator grid mirrors the `OnActionStarted` / `OnActionCompleted` events firing on each bridge — no polling, no shared state.
