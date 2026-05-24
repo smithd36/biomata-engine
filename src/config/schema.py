@@ -34,12 +34,13 @@ class ComponentConfig(BaseModel):
 
 
 class AgentConfig(BaseModel):
-    id:        str
-    name:      str
-    brain:     ComponentConfig
-    state_ext: ComponentConfig | None = None
-    memory:    ComponentConfig | None = None
-    position:  dict[str, Any]  | None = None
+    id:           str
+    name:         str
+    brain:        ComponentConfig
+    state_ext:    ComponentConfig | None = None
+    memory:       ComponentConfig | None = None
+    position:     dict[str, Any]  | None = None
+    capabilities: list[str]              = Field(default_factory=list)
 
 
 class SimConfig(BaseModel):

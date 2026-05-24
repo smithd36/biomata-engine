@@ -4,8 +4,8 @@ src/service/interfaces.py
 Service-layer protocols and enumerations.
 
 SimulationController is the primary interface between any transport adapter
-and the simulation engine. Transport code (WebSocket handlers, gRPC servicers,
-Unity bridges) depend only on this protocol — never on Simulation directly.
+and the simulation engine. Transport code (WebSocket handlers, Unity bridges)
+depends only on this protocol — never on Simulation directly.
 
 Why a Protocol and not an ABC:
   - Allows existing Simulation-wrapping code to satisfy the interface without
@@ -22,12 +22,43 @@ from src.service.dto import (
 )
 
 
+# ── Tick mode ─────────────────────────────────────────────────────────────────
+
+class TickMode(str, Enum):
+    """
+    Controls who drives simulation timing. Declared at server startup and
+    announced to clients in the hello frame. All connections to a single
+    server instance share the same mode.
+
+    HOST_DRIVEN — the external client (Unity, Unreal, browser) calls ``tick``
+                  when it is ready. The backend never self-ticks. Ideal for
+                  game engines that need to synchronize simulation timing to
+                  their physics or render loop.
+
+                  Valid methods:   tick, send_observation, register_agent,
+                                   remove_agent, snapshot, restore, events
+                  Invalid methods: pause, resume  → SESSION_ERROR
+
+    AUTONOMOUS  — the backend runs its own tick loop at the rate configured
+                  in sim.yaml. Clients subscribe to events and use
+                  ``pause``/``resume`` to control the loop. Ideal for headless
+                  simulations and research batch runs.
+
+                  Valid methods:   pause, resume, send_observation,
+                                   register_agent, remove_agent, snapshot,
+                                   restore, events
+                  Invalid methods: tick → SESSION_ERROR
+    """
+    HOST_DRIVEN = "host_driven"
+    AUTONOMOUS  = "autonomous"
+
+
 # ── Session lifecycle ─────────────────────────────────────────────────────────
 
 class SessionState(Enum):
     CREATED = "created"   # initialised, not yet ticked
-    RUNNING = "running"   # run() loop active
-    PAUSED  = "paused"    # run() loop suspended; step() still works
+    RUNNING = "running"   # autonomous loop active, or processing a host tick
+    PAUSED  = "paused"    # autonomous loop suspended (autonomous mode only)
     STOPPED = "stopped"   # shutdown() called; no further ticks
     ERROR   = "error"     # unrecoverable error; check status()
 
@@ -45,9 +76,8 @@ class SimulationController(Protocol):
     """
     Transport-facing interface to a running simulation session.
 
-    Transport adapters (WebSocket handlers, gRPC servicers, test harnesses)
-    depend on this protocol exclusively. The core engine is never imported
-    by transport code.
+    Transport adapters (WebSocket handlers, test harnesses) depend on this
+    protocol exclusively. The core engine is never imported by transport code.
 
     Tick control
     ────────────

@@ -37,13 +37,10 @@ namespace Biomata.SDK.Unity
         // ── Inspector fields ──────────────────────────────────────────────────
 
         [Header("Connection")]
-        [Tooltip("Wire-level transport. WebSocket (default) is recommended for Unity 6.")]
-        [SerializeField] private TransportKind transport = TransportKind.WebSocket;
-
         [Tooltip("Server hostname or IP.")]
         [SerializeField] private string host = "localhost";
 
-        [Tooltip("Server port. Default 8765 for WebSocket; switch to 50051 for gRPC.")]
+        [Tooltip("Server port. Default 8765 for biomata-ws.")]
         [SerializeField] private int port = 8765;
 
         [Tooltip("Use TLS (wss:// or https://). Requires a valid server certificate. Leave false for local dev.")]
@@ -169,9 +166,7 @@ namespace Biomata.SDK.Unity
                 await StartEventStreamAsync(ct);
         }
 
-        /// <summary>
-        /// Disconnect cleanly. Stops the event stream and closes the gRPC channel.
-        /// </summary>
+        /// <summary>Disconnect cleanly. Stops the event stream and closes the connection.</summary>
         public async Task DisconnectAsync()
         {
             if (Client != null)
@@ -242,7 +237,6 @@ namespace Biomata.SDK.Unity
 
         private BiomataConfig BuildConfig() => new BiomataConfig
         {
-            Transport                 = transport,
             Host                      = host,
             Port                      = port,
             UseTls                    = useTls,

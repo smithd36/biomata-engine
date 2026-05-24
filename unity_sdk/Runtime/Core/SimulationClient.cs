@@ -1,5 +1,5 @@
 // Biomata.SDK — SimulationClient.cs
-// Top-level client. Owns the transport and exposes the sub-clients.
+// Top-level client. Owns the WebSocket transport and exposes the sub-clients.
 //
 // Lifecycle
 // ─────────
@@ -10,11 +10,7 @@
 //   var result = await client.Ticks.TickAsync(…);
 //   await client.Events.StartAsync(ct);
 //
-//   await client.DisconnectAsync();           // stops stream, drains, closes channel
-//
-// Transport selection — controlled by BiomataConfig.Transport:
-//   WebSocket (default for Unity 6) — JSON over System.Net.WebSockets
-//   Grpc                            — protobuf via Grpc.Net.Client
+//   await client.DisconnectAsync();           // stops stream, drains, closes socket
 
 using System;
 using System.Threading;
@@ -76,9 +72,6 @@ namespace Biomata.SDK
         public Exception LastError { get; private set; }
 
         public event Action<ConnectionState> OnStateChanged;
-
-        /// <summary>Which transport this client is using (set by <see cref="ConnectAsync"/>).</summary>
-        public TransportKind ActiveTransport => _config.Transport;
 
         // ── Construction ──────────────────────────────────────────────────────
 
@@ -169,19 +162,6 @@ namespace Biomata.SDK
         }
 
         private static ITransport BuildTransport(BiomataConfig config)
-        {
-            switch (config.Transport)
-            {
-                case TransportKind.WebSocket:
-                    return new WebSocketTransport(config);
-
-                case TransportKind.Grpc:
-                    throw new NotSupportedException(
-                        "gRPC transport is temporarily disabled in the Unity SDK. Use WebSocket transport.");
-
-                default:
-                    throw new InvalidOperationException($"Unknown transport: {config.Transport}");
-            }
-        }
+            => new WebSocketTransport(config);
     }
 }

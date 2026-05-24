@@ -13,7 +13,7 @@ namespace Biomata.SDK.Clients
 {
     /// <summary>
     /// Subscribes to the engine's real-time event stream and fans events out
-    /// to per-type C# handlers. Backend-agnostic — works over WebSocket or gRPC.
+    /// to per-type C# handlers. Transport-agnostic — delegates to ITransport.
     ///
     /// Performance: subscriptions are bucketed by event type at subscribe-time
     /// and cached as immutable arrays so per-event dispatch is allocation-free.

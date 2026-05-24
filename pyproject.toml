@@ -16,20 +16,17 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-ollama  = ["httpx>=0.27"]
-openai  = ["openai>=1.0"]
-viz     = ["rich>=13.0"]
-grpc      = ["grpcio>=1.60", "grpcio-tools>=1.60"]
+ollama    = ["httpx>=0.27"]
+openai    = ["openai>=1.0"]
+viz       = ["rich>=13.0"]
 websocket = ["websockets>=12.0"]
 dev       = [
     "pytest>=8.0", "pytest-asyncio>=0.23", "mypy>=1.0",
-    "grpcio>=1.60", "grpcio-tools>=1.60",
     "websockets>=12.0",
 ]
 
 [project.scripts]
 biomata-engine = "engine.cli.main:main"
-biomata-grpc   = "src.transport.grpc.server:main"
 biomata-ws     = "src.transport.websocket.__main__:main"
 
 [tool.setuptools.packages.find]

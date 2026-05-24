@@ -4,6 +4,7 @@ src/contracts/action.py
 Contracts for the action system. These are the stable types that flow
 between engine, world, brain, and handlers.
 
+  ActionKind    — who executes the action: HOST | ENGINE | HYBRID
   Intent        — what an agent wants to do (output of Brain.decide)
   ActionResult  — what actually happened (output of ActionHandler.execute)
   ActionHandler — user-implemented: one class per action
@@ -14,7 +15,16 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Protocol, runtime_checkable
+
+
+# ── ActionKind ────────────────────────────────────────────────────────────────
+
+class ActionKind(str, Enum):
+    HOST   = "host"    # host (Unity/renderer) executes via engine_commands; Python only packages the command
+    ENGINE = "engine"  # Python executes; may mutate world state, inventory, social graph
+    HYBRID = "hybrid"  # both: Python processing AND host commands
 
 
 # ── Intent ────────────────────────────────────────────────────────────────────
@@ -97,10 +107,18 @@ class ActionHandler(Protocol):
 class ActionSchema:
     name:              str
     description:       str
-    parameters_schema: dict[str, Any] = field(default_factory=dict)
+    parameters_schema: dict[str, Any]  = field(default_factory=dict)
+    kind:              ActionKind       = ActionKind.HYBRID
+    tags:              frozenset[str]   = field(default_factory=frozenset)
+    examples:          list[dict]       = field(default_factory=list)
 
     def prompt_block(self) -> str:
+        kind_label = f"  [{self.kind.value}]" if self.kind != ActionKind.HYBRID else ""
+        lines = [f"  {self.name}: {self.description}{kind_label}"]
         if self.parameters_schema:
             params = json.dumps(self.parameters_schema, separators=(",", ":"))
-            return f"  {self.name}: {self.description}  params={params}"
-        return f"  {self.name}: {self.description}"
+            lines.append(f"    params: {params}")
+        if self.examples:
+            ex_json = json.dumps(self.examples[0], separators=(",", ":"))
+            lines.append(f"    example: {ex_json}")
+        return "\n".join(lines)

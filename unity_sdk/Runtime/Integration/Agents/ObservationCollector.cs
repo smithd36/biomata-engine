@@ -42,8 +42,7 @@ namespace Biomata.Integration
 
         /// <summary>
         /// Build the observation dictionary for the current tick.
-        /// Called by <see cref="UnityAgentBridge.BuildObservation"/> immediately before
-        /// the gRPC tick RPC is issued.
+        /// Called by <see cref="UnityAgentBridge.BuildObservation"/> before each tick.
         /// </summary>
         public Dictionary<string, object> Collect()
         {

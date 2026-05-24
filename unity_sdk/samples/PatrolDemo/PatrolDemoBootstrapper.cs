@@ -26,7 +26,6 @@ using System.Reflection;
 using Biomata.Integration;
 using Biomata.Integration.Actions;
 using Biomata.Integration.Observations;
-using Biomata.SDK;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -38,9 +37,8 @@ namespace Biomata.Samples
         // ── Inspector ─────────────────────────────────────────────────────────
 
         [Header("Backend Connection")]
-        [SerializeField] private string        host      = "localhost";
-        [SerializeField] private int           port      = 8765;
-        [SerializeField] private TransportKind transport = TransportKind.WebSocket;
+        [SerializeField] private string host = "localhost";
+        [SerializeField] private int    port = 8765;
 
         [Header("Tick Rate")]
         [Tooltip("Simulation ticks per second driven by UnitySimulationManager.")]
@@ -143,7 +141,6 @@ namespace Biomata.Samples
             var mgr = go.AddComponent<UnitySimulationManager>();
 
             // Set private serialized fields before Awake fires.
-            SetField(mgr, "transport",   transport);
             SetField(mgr, "host",        host);
             SetField(mgr, "port",        port);
             SetField(mgr, "tickRate",    tickRate);

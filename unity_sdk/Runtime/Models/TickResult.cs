@@ -50,8 +50,7 @@ namespace Biomata.SDK.Models
             Decisions = decisions ?? (IReadOnlyList<AgentDecisionResult>)System.Array.Empty<AgentDecisionResult>();
             Errors    = errors    ?? System.Array.Empty<(string, string)>();
 
-            // Build the id → decision lookup and AllCommands view exactly the
-            // same way the proto constructor does.
+            // Build the id → decision lookup and AllCommands view.
             var byId = new Dictionary<string, AgentDecisionResult>(Decisions.Count);
             foreach (var d in Decisions) byId[d.AgentId] = d;
             _byId = byId;

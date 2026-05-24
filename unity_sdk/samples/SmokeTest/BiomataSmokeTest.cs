@@ -8,7 +8,7 @@
 // ────────────────
 //   1. The SDK assembly compiles into the consuming project.
 //   2. BiomataManager can be added to the scene and configured.
-//   3. ConnectAsync reaches the gRPC server.
+//   3. ConnectAsync reaches the WebSocket server.
 //   4. HealthCheck round-trips a request/response.
 //   5. RegisterAgent successfully adds one agent.
 //   6. The event stream delivers events back to the client.
@@ -16,8 +16,8 @@
 // Prerequisites
 // ─────────────
 //   - Python backend running:
-//        biomata-grpc --config examples/corporate/sim.yaml --port 50051
-//   - Default host/port (localhost:50051) — override in the Inspector if needed.
+//        biomata-ws --config examples/corporate/sim.yaml --port 8765
+//   - Default host/port (localhost:8765) — override in the Inspector if needed.
 
 using System;
 using System.Collections.Generic;
@@ -39,8 +39,6 @@ namespace Biomata.Samples
         // ── Inspector ─────────────────────────────────────────────────────────
 
         [Header("Connection")]
-        [Tooltip("Default transport for Unity 6 is WebSocket (biomata-ws, port 8765).")]
-        [SerializeField] private TransportKind transport = TransportKind.WebSocket;
         [SerializeField] private string host = "localhost";
         [SerializeField] private int    port = 8765;
 
@@ -128,7 +126,6 @@ namespace Biomata.Samples
             var t = typeof(BiomataManager);
             const System.Reflection.BindingFlags flags =
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
-            t.GetField("transport",            flags)?.SetValue(mgr, transport);
             t.GetField("host",                 flags)?.SetValue(mgr, host);
             t.GetField("port",                 flags)?.SetValue(mgr, port);
             t.GetField("connectOnStart",       flags)?.SetValue(mgr, false);

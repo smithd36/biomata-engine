@@ -13,7 +13,7 @@ namespace Biomata.Integration
     ///
     /// Responsibilities:
     /// <list type="bullet">
-    ///   <item>Manages the gRPC connection lifecycle.</item>
+    ///   <item>Manages the WebSocket connection lifecycle.</item>
     ///   <item>Drives simulation ticks from FixedUpdate (or Update) at a configurable rate.</item>
     ///   <item>Collects observations from all registered <see cref="UnityAgentBridge"/> components.</item>
     ///   <item>Distributes backend decisions to the appropriate bridge after each tick.</item>
@@ -31,8 +31,6 @@ namespace Biomata.Integration
         // ── Inspector ─────────────────────────────────────────────────────────────
 
         [Header("Connection")]
-        [Tooltip("Wire-level transport. WebSocket (default) pairs with biomata-ws on port 8765; gRPC pairs with biomata-grpc on port 50051.")]
-        [SerializeField] private TransportKind transport          = TransportKind.WebSocket;
         [SerializeField] private string        host               = "localhost";
         [SerializeField] private int           port               = 8765;
         [SerializeField] private bool          useTls             = false;
@@ -63,7 +61,7 @@ namespace Biomata.Integration
         /// <summary>Fired on the main thread when a tick RPC fails.</summary>
         public event Action<Exception> OnTickError;
 
-        /// <summary>Fired once the gRPC channel is open and health-checked.</summary>
+        /// <summary>Fired once connected and health-checked.</summary>
         public event Action OnConnected;
 
         /// <summary>Fired after the channel is closed cleanly.</summary>
@@ -78,7 +76,7 @@ namespace Biomata.Integration
         public static UnitySimulationManager Instance { get; private set; }
 
         /// <summary>
-        /// The underlying gRPC client. Available after a successful <see cref="Connect"/>.
+        /// The underlying client. Available after a successful <see cref="Connect"/>.
         /// Use sub-clients (<c>Client.Agents</c>, <c>Client.Snapshots</c>, etc.) for
         /// operations not covered by the integration layer.
         /// </summary>
@@ -185,7 +183,6 @@ namespace Biomata.Integration
 
             var config = new BiomataConfig
             {
-                Transport             = transport,
                 Host                  = host,
                 Port                  = port,
                 UseTls                = useTls,
@@ -293,7 +290,7 @@ namespace Biomata.Integration
         {
             // Reuse the same List instance every tick to keep GC quiet at scale.
             // TickClient consumes the list synchronously inside this coroutine
-            // (it iterates `agentObservations` to build the proto request and
+            // (it iterates `agentObservations` to build the JSON request and
             // does not retain a reference), so reuse is safe.
             _observationBuffer.Clear();
             if (_observationBuffer.Capacity < _bridges.Count)

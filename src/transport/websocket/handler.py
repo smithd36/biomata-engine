@@ -1,33 +1,38 @@
 """
 src/transport/websocket/handler.py
-──────────────────────────────────────────────────────────────
+──────────────────────────────────────────────────────────────────────────────
 ConnectionHandler — per-connection adapter between one WebSocket and the
 shared SimulationSession.
 
 One instance per connected client. Lifecycle:
 
   1. Server accepts a new WebSocket → instantiates a ConnectionHandler.
-  2. run() loops: read frames, dispatch request frames to session methods,
-     send response frames back. Event frames are pushed asynchronously by
-     an event pump started on first subscribe_events call.
-  3. On disconnect (clean or faulted): unsubscribes from the session, drains
+  2. run() sends the hello frame, then loops: read frames, dispatch request
+     frames to session methods, send response frames back.
+  3. Event frames are pushed asynchronously by an event pump started on the
+     first subscribe_events call.
+  4. On disconnect (clean or faulted): unsubscribes from the session, drains
      pending tasks, exits.
 
-The handler never imports from src.engine — only from src.service. That keeps
-the engine transport-agnostic and matches the gRPC servicer's discipline.
+Protocol: see docs/websocket-protocol.md and src/transport/websocket/protocol.py
+
+The handler never imports from src.engine — only from src.service.
 
 Error mapping
 ─────────────
-  SessionError      → ok=False, error="<message>"
-  ValueError/Type   → ok=False, error="<message>"
-  Unexpected exc    → ok=False, error="<message>" (logged at WARNING)
+  ProtocolError(code)       → ok=False, structured error object with that code
+  SessionError              → ok=False, ErrorCode.SESSION_ERROR
+  ValueError/TypeError      → ok=False, ErrorCode.INVALID_PARAMS
+  Unexpected exception      → ok=False, ErrorCode.INTERNAL_ERROR (logged WARNING)
+  JSON parse failure        → ok=False, ErrorCode.PARSE_ERROR   (req_id=null)
+  Unknown method            → ok=False, ErrorCode.METHOD_NOT_FOUND
+  Missing method field      → ok=False, ErrorCode.INVALID_REQUEST
 
 Backpressure
 ────────────
 Event delivery uses an asyncio.Queue. If the consumer can't keep up the queue
-saturates and new events are dropped with a single batched warning — same
-discipline as the gRPC StreamEvents path. The default size matches the gRPC
-default (2048).
+saturates and new events are dropped with a single batched warning.
+Default queue size: 2048.
 """
 from __future__ import annotations
 
@@ -50,16 +55,19 @@ from src.service import (
 )
 from src.transport.websocket.protocol import (
     MSG_REQUEST,
+    PROTOCOL_VERSION,
+    ErrorCode,
     Method,
+    ProtocolError,
     build_error,
     build_event,
+    build_hello,
     build_response,
 )
 
 
 logger = logging.getLogger(__name__)
 
-# Same default as the gRPC StreamEvents queue — see src/transport/grpc/servicer.py.
 _DEFAULT_EVENT_QUEUE_SIZE = 2048
 
 
@@ -92,15 +100,20 @@ class ConnectionHandler:
         self._sub_id:     str | None = None
         self._filter:     set[str] | None = None
 
-        self._event_queue:   asyncio.Queue[ServiceEvent] = asyncio.Queue(maxsize=event_queue_size)
-        self._event_pump:    asyncio.Task | None = None
+        self._event_queue:    asyncio.Queue[ServiceEvent] = asyncio.Queue(maxsize=event_queue_size)
+        self._event_pump:     asyncio.Task | None = None
+        self._event_seq:      int = 0
         self._dropped_events: int = 0
 
     # ── Main loop ─────────────────────────────────────────────────────────────
 
     async def run(self) -> None:
-        """Receive frames until the connection closes."""
+        """Send hello, then receive frames until the connection closes."""
         try:
+            await self._send(build_hello(
+                session_id = self._session.session_id,
+                tick_mode  = self._session.tick_mode,
+            ))
             async for raw in self._ws:
                 await self._on_frame(raw)
         except Exception as exc:
@@ -137,31 +150,42 @@ class ConnectionHandler:
         try:
             msg = json.loads(raw)
         except json.JSONDecodeError as exc:
-            await self._send(build_error(None, f"invalid json: {exc}"))
+            await self._send(build_error(None, f"invalid JSON: {exc}", ErrorCode.PARSE_ERROR))
             return
 
         if not isinstance(msg, dict) or msg.get("type") != MSG_REQUEST:
-            # Ignore non-request frames (responses and events flow server→client only).
-            return
+            return  # Ignore non-request frames
 
         req_id = msg.get("id")
         method = msg.get("method")
         params = msg.get("params") or {}
 
+        # Warn on protocol version mismatch but do not reject — allows older
+        # clients to keep working during a version transition.
+        client_v = msg.get("v")
+        if client_v is not None and client_v != PROTOCOL_VERSION:
+            logger.warning(
+                "ws: client protocol v%s differs from server v%s",
+                client_v, PROTOCOL_VERSION,
+            )
+
         if not isinstance(method, str):
-            await self._send(build_error(req_id, "missing method"))
+            await self._send(build_error(req_id, "missing or invalid 'method' field",
+                                         ErrorCode.INVALID_REQUEST))
             return
 
         try:
             result = await self._dispatch(method, params)
             await self._send(build_response(req_id, result))
+        except ProtocolError as exc:
+            await self._send(build_error(req_id, str(exc), exc.code))
         except SessionError as exc:
-            await self._send(build_error(req_id, f"session error: {exc}"))
+            await self._send(build_error(req_id, str(exc), ErrorCode.SESSION_ERROR))
         except (ValueError, TypeError) as exc:
-            await self._send(build_error(req_id, f"bad request: {exc}"))
+            await self._send(build_error(req_id, str(exc), ErrorCode.INVALID_PARAMS))
         except Exception as exc:   # noqa: BLE001
-            logger.exception("ws: handler error in %s", method)
-            await self._send(build_error(req_id, f"internal error: {exc}"))
+            logger.exception("ws: unhandled error in method '%s'", method)
+            await self._send(build_error(req_id, str(exc), ErrorCode.INTERNAL_ERROR))
 
     async def _send(self, payload: dict[str, Any]) -> None:
         await self._ws.send(json.dumps(payload, separators=(",", ":")))
@@ -191,9 +215,9 @@ class ConnectionHandler:
             return self._handle_subscribe_events(params)
         if method == Method.UNSUBSCRIBE_EVENTS:
             return self._handle_unsubscribe_events()
-        raise ValueError(f"unknown method '{method}'")
+        raise ProtocolError(f"unknown method '{method}'", ErrorCode.METHOD_NOT_FOUND)
 
-    # ── Method handlers ──────────────────────────────────────────────────────
+    # ── Method handlers ───────────────────────────────────────────────────────
 
     def _handle_health_check(self) -> dict[str, Any]:
         st = self._session.status()
@@ -202,6 +226,7 @@ class ConnectionHandler:
             "session_state": st.state,
             "tick":          st.tick,
             "agent_count":   st.agent_count,
+            "tick_mode":     st.tick_mode,
         }
 
     def _handle_register_agent(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -212,53 +237,58 @@ class ConnectionHandler:
         memory_class = params.get("memory_class")  or ""
         memory_kw    = params.get("memory_config") or {}
 
-        if not agent_id:    raise ValueError("agent_id is required")
-        if not agent_name:  raise ValueError("agent_name is required")
-        if not brain_class: raise ValueError("brain_class is required")
+        if not agent_id:
+            raise ProtocolError("agent_id is required", ErrorCode.INVALID_PARAMS)
+        if not agent_name:
+            raise ProtocolError("agent_name is required", ErrorCode.INVALID_PARAMS)
+        if not brain_class:
+            raise ProtocolError("brain_class is required", ErrorCode.INVALID_PARAMS)
 
         if any(a.id == agent_id for a in self._sim.agents):
-            return {"success": False, "error": f"agent '{agent_id}' already registered"}
+            raise ProtocolError(
+                f"agent '{agent_id}' already registered",
+                ErrorCode.AGENT_EXISTS,
+            )
 
         try:
             brain_cls = _import_dotted(brain_class)
             brain     = brain_cls(**brain_kwargs)
-            if memory_class:
-                memory = _import_dotted(memory_class)(**memory_kw)
-            else:
-                memory = SimpleMemory()
-            agent = Agent(id=agent_id, name=agent_name, brain=brain, memory=memory)
+            memory    = _import_dotted(memory_class)(**memory_kw) if memory_class else SimpleMemory()
+            agent     = Agent(id=agent_id, name=agent_name, brain=brain, memory=memory)
         except (ImportError, AttributeError) as exc:
-            return {"success": False, "error": f"import error: {exc}"}
+            raise ProtocolError(f"import error: {exc}", ErrorCode.IMPORT_ERROR) from exc
         except Exception as exc:    # noqa: BLE001
-            return {"success": False, "error": str(exc)}
+            raise ProtocolError(str(exc), ErrorCode.INVALID_PARAMS) from exc
 
         self._sim.agents.append(agent)
         if hasattr(self._world, "register_agents"):
             self._world.register_agents(self._sim.agents)
-        return {"success": True}
+        return {"agent_id": agent_id}
 
     def _handle_remove_agent(self, params: dict[str, Any]) -> dict[str, Any]:
         agent_id = params.get("agent_id")
         if not agent_id:
-            raise ValueError("agent_id is required")
+            raise ProtocolError("agent_id is required", ErrorCode.INVALID_PARAMS)
         before = len(self._sim.agents)
         self._sim.agents = [a for a in self._sim.agents if a.id != agent_id]
         if len(self._sim.agents) == before:
-            return {"success": False, "error": f"agent '{agent_id}' not found"}
+            raise ProtocolError(f"agent '{agent_id}' not found", ErrorCode.AGENT_NOT_FOUND)
         if hasattr(self._world, "register_agents"):
             self._world.register_agents(self._sim.agents)
-        return {"success": True}
+        return {"agent_id": agent_id}
 
     def _handle_send_observation(self, params: dict[str, Any]) -> dict[str, Any]:
         agent_id = params.get("agent_id")
         obs      = params.get("observation") or {}
         if not agent_id:
-            raise ValueError("agent_id is required")
+            raise ProtocolError("agent_id is required", ErrorCode.INVALID_PARAMS)
         if not hasattr(self._world, "push_observation"):
-            return {"success": False,
-                    "error": "world does not support push_observation (not a HostedWorld)"}
+            raise ProtocolError(
+                "world does not support push_observation (requires HostedWorld)",
+                ErrorCode.INVALID_PARAMS,
+            )
         self._world.push_observation(agent_id, obs)
-        return {"success": True}
+        return {"agent_id": agent_id}
 
     async def _handle_tick(self, params: dict[str, Any]) -> dict[str, Any]:
         obs_list = params.get("agent_observations") or []
@@ -312,18 +342,18 @@ class ConnectionHandler:
     def _handle_restore(self, params: dict[str, Any]) -> dict[str, Any]:
         b64 = params.get("data_b64")
         if not isinstance(b64, str):
-            raise ValueError("data_b64 (base64 string) is required")
+            raise ProtocolError("data_b64 (base64 string) is required", ErrorCode.INVALID_PARAMS)
         try:
             snap = pickle.loads(base64.b64decode(b64))
             self._session.restore(snap)
-            return {"success": True, "tick": snap.tick}
+            return {"tick": snap.tick}
         except SnapshotError as exc:
-            return {"success": False, "error": str(exc)}
+            raise ProtocolError(str(exc), ErrorCode.INTERNAL_ERROR) from exc
 
-    # ── Event subscription ──────────────────────────────────────────────────
+    # ── Event subscription ────────────────────────────────────────────────────
 
     def _handle_subscribe_events(self, params: dict[str, Any]) -> dict[str, Any]:
-        # idempotent — re-subscribing with a new filter updates the filter.
+        # Idempotent — re-subscribing with a new filter updates the filter.
         types = params.get("event_types")
         self._filter = set(types) if types else None
         if self._sub_id is None:
@@ -336,8 +366,6 @@ class ConnectionHandler:
         if self._sub_id is not None:
             self._session.unsubscribe(self._sub_id)
             self._sub_id = None
-        # Don't cancel the pump — let it drain any in-flight events. It will
-        # idle once the queue is empty.
         return {"unsubscribed": True}
 
     def _on_session_event(self, ev: ServiceEvent) -> None:
@@ -354,17 +382,18 @@ class ConnectionHandler:
         try:
             while True:
                 ev = await self._event_queue.get()
+                self._event_seq += 1
                 frame = build_event(
                     session_id = ev.session_id,
                     event_type = ev.event_type,
                     tick       = ev.tick,
                     agent_id   = ev.agent_id,
                     data       = ev.data,
+                    seq        = self._event_seq,
                 )
                 try:
                     await self._ws.send(json.dumps(frame, separators=(",", ":")))
                 except Exception:   # noqa: BLE001
-                    # Connection failed — outer loop will tidy up.
                     return
         except asyncio.CancelledError:
             return

@@ -1,0 +1,199 @@
+# examples/village/sim.yaml
+#
+# Biomata Village Life Sandbox — backend configuration.
+#
+# 10 autonomous NPCs with hybrid cognition:
+#   7 deterministic  — guards (WaypointBrain), villagers/farmer/townsfolk (VillagerBrain)
+#   3 LLM-backed     — merchant, innkeeper, traveler (OllamaLLMBrain)
+#
+# Village POI coordinates (x, z):
+#   TownSquare  ( 0,  0)   Well    ( 6,  4)
+#   Market      (14,  0)   Tavern  (-10,  5)
+#   Farm        ( 2,-14)   NorthGate (0, 14)   SouthGate (0,-14)
+#
+# Start:
+#   biomata-ws --config examples/village/sim.yaml --port 8765
+#
+# Requires Ollama running at localhost:11434 for the 3 LLM agents.
+# Pure-deterministic mode: comment out merchant_001, innkeeper_001, traveler_001.
+
+engine:
+  ticks: 99999
+  seed: 42
+  scheduler: simultaneous
+
+world:
+  class: src.plugins.external.world.HostedWorld
+
+registry:
+  class: examples.village.sim.registry.build_village_registry
+
+llm:
+  model: qwen2.5:14b
+  base_url: http://localhost:11434
+  temperature: 0.7
+
+agents:
+
+  # ── Guards — deterministic waypoint patrol ────────────────────────────────
+
+  - id: guard_001
+    name: Aldric
+    brain:
+      class: examples.patrol.sim.brain.WaypointBrain
+      waypoints:
+        - [ 0.0,  14.0]   # North Gate
+        - [12.0,   8.0]   # East Road
+        - [14.0,   0.0]   # East Post
+        - [ 0.0,   0.0]   # Town Square
+      arrival_threshold: 1.2
+
+  - id: guard_002
+    name: Berna
+    brain:
+      class: examples.patrol.sim.brain.WaypointBrain
+      waypoints:
+        - [  0.0, -14.0]  # South Gate
+        - [-12.0,  -8.0]  # West Road South
+        - [-14.0,   0.0]  # West Post
+        - [  0.0,   0.0]  # Town Square
+      arrival_threshold: 1.2
+
+  # ── Villagers — deterministic POI loop ───────────────────────────────────
+
+  - id: villager_001
+    name: Mira
+    brain:
+      class: examples.village.sim.brain.VillagerBrain
+      pois:
+        - [  0.0,  0.0]   # Town Square
+        - [  6.0,  4.0]   # Well
+        - [ 14.0,  0.0]   # Market
+        - [-10.0,  5.0]   # Tavern
+      idle_ticks: 3
+      arrival_threshold: 1.2
+
+  - id: villager_002
+    name: Tomas
+    brain:
+      class: examples.village.sim.brain.VillagerBrain
+      pois:
+        - [ 6.0,  4.0]    # Well
+        - [ 0.0,  0.0]    # Town Square
+        - [14.0,  0.0]    # Market
+      idle_ticks: 2
+      arrival_threshold: 1.2
+
+  # ── Merchant — LLM-backed, stays near Market ──────────────────────────────
+
+  - id: merchant_001
+    name: Silas
+    brain:
+      class: src.plugins.builtin.ollama.brain.OllamaLLMBrain
+      personality:
+        traits:
+          - shrewd
+          - friendly
+          - entrepreneurial
+        goals:
+          - Stay near the Market at position (14, 0) most of the time
+          - Navigate to TownSquare (0, 0) or Well (6, 4) occasionally to find customers
+          - Use speak to call out goods or greet villagers — keep messages under 8 words
+          - Use interact when arriving at a new location
+          - Always navigate or speak; avoid idling more than one tick in a row
+        backstory: >
+          You are Silas, the village merchant. Your market stall is at coordinates (14, 0).
+          Village locations with (x, z) coordinates: TownSquare (0,0), Well (6,4),
+          Market (14,0), Tavern (-10,5), Farm (2,-14). Stay within -20 to 20 on both axes.
+          Prefer staying near the Market. Occasionally visit TownSquare or the Well.
+          Your position is given as position_x and position_z in each observation.
+          When you speak, say short merchant calls like "Fresh goods today!" or "Best prices in the village!".
+
+  # ── Farmer — deterministic, works the land ───────────────────────────────
+
+  - id: farmer_001
+    name: Edith
+    brain:
+      class: examples.village.sim.brain.VillagerBrain
+      pois:
+        - [ 2.0, -14.0]   # Farm
+        - [ 6.0,   4.0]   # Well
+        - [14.0,   0.0]   # Market
+        - [ 2.0, -14.0]   # Farm (return)
+      idle_ticks: 4
+      arrival_threshold: 1.2
+
+  # ── Innkeeper — LLM-backed, anchored to the Tavern ───────────────────────
+
+  - id: innkeeper_001
+    name: Rogan
+    brain:
+      class: src.plugins.builtin.ollama.brain.OllamaLLMBrain
+      personality:
+        traits:
+          - hospitable
+          - gossipy
+          - warm
+        goals:
+          - Stay near the Tavern at position (-10, 5) most of the time
+          - Visit TownSquare (0, 0) at most once every few ticks, then return to the Tavern
+          - Use speak to share friendly gossip or tavern invitations — keep messages under 8 words
+          - Use interact when greeting someone at the Tavern
+          - Strongly prefer the Tavern over all other locations
+        backstory: >
+          You are Rogan, innkeeper of the Rusty Anchor tavern at coordinates (-10, 5).
+          Village locations with (x, z) coordinates: TownSquare (0,0), Well (6,4),
+          Market (14,0), Tavern (-10,5), Farm (2,-14). Stay within -20 to 20 on both axes.
+          You mostly stay at the Tavern. Visit TownSquare only occasionally.
+          Your position is given as position_x and position_z.
+          When you speak, say things like "Come in from the cold!" or a short piece of gossip.
+
+  # ── Traveler — LLM-backed, wanders freely ────────────────────────────────
+
+  - id: traveler_001
+    name: Lyra
+    brain:
+      class: src.plugins.builtin.ollama.brain.OllamaLLMBrain
+      personality:
+        traits:
+          - curious
+          - restless
+          - observant
+        goals:
+          - Always navigate to a DIFFERENT location each tick — never idle or stay put
+          - Rotate through all locations: Market (14,0), Tavern (-10,5), Well (6,4), TownSquare (0,0), Farm (2,-14)
+          - Use speak occasionally to comment on what you see — keep messages under 8 words
+          - Never repeat the same destination two ticks in a row
+          - Choose navigate every single tick
+        backstory: >
+          You are Lyra, a traveler passing through the village.
+          Village locations with (x, z) coordinates: TownSquare (0,0), Well (6,4),
+          Market (14,0), Tavern (-10,5), Farm (2,-14). Stay within -20 to 20 on both axes.
+          You are always moving — pick a new location every tick.
+          Your position is given as position_x and position_z.
+          When you speak, briefly comment on what you observe at your current location.
+
+  # ── Townsfolk — deterministic, casual wanderers ───────────────────────────
+
+  - id: townsfolk_001
+    name: Bram
+    brain:
+      class: examples.village.sim.brain.VillagerBrain
+      pois:
+        - [  0.0,  0.0]   # Town Square
+        - [  6.0,  4.0]   # Well
+        - [-10.0,  5.0]   # Tavern
+        - [  0.0,  0.0]   # Town Square (return)
+      idle_ticks: 3
+      arrival_threshold: 1.2
+
+  - id: townsfolk_002
+    name: Nessa
+    brain:
+      class: examples.village.sim.brain.VillagerBrain
+      pois:
+        - [-10.0,  5.0]   # Tavern
+        - [  0.0,  0.0]   # Town Square
+        - [ 14.0,  0.0]   # Market
+      idle_ticks: 2
+      arrival_threshold: 1.2

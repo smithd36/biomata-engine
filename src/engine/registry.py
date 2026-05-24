@@ -41,8 +41,26 @@ class ActionRegistry:
         return list(self._entries.keys())
 
     def schemas(self) -> list[ActionSchema]:
-        """Return all registered ActionSchema objects (used by Brain.decide)."""
+        """Return all registered ActionSchema objects."""
         return [schema for schema, _ in self._entries.values()]
+
+    def schemas_for(self, capabilities: "frozenset[str]") -> list[ActionSchema]:
+        """
+        Return the ActionSchemas an agent with the given capabilities may use.
+
+        Visibility rules:
+          - Untagged schema (tags == frozenset())  → universal; always visible.
+          - Tagged schema                          → visible only if the agent's
+            capabilities intersect the schema's tags (at least one tag matches).
+
+        Pass an empty frozenset for agents with no special capabilities —
+        they will see all universal (untagged) actions.
+        """
+        result = []
+        for schema, _ in self._entries.values():
+            if not schema.tags or schema.tags & capabilities:
+                result.append(schema)
+        return result
 
     def actions_prompt_section(self) -> str:
         lines = ["AVAILABLE ACTIONS (use exactly these names):"]

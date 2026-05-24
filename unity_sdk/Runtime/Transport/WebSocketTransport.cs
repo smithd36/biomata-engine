@@ -3,13 +3,18 @@
 // JSON-over-WebSocket transport, using System.Net.WebSockets.ClientWebSocket
 // (built into Unity 6's .NET Standard 2.1 BCL — no precompiled DLL needed).
 //
-// Protocol contract is defined by src/transport/websocket/protocol.py on the
-// Python side. Three frame shapes:
-//   {"type":"req", "id":"<uuid>", "method":"<name>", "params":{...}}
-//   {"type":"res", "id":"<uuid>", "ok":true|false, "result":{...} | "error":"..."}
-//   {"type":"evt", "event_type":"...", "tick":N, "agent_id":"...", "data":{...}}
+// Protocol v1 — see docs/websocket-protocol.md for the full spec.
+// Four frame shapes (all JSON text, UTF-8):
+//   {"type":"hlo", "v":1, "server":"biomata-engine", "server_version":"...",
+//    "session_id":"...", "capabilities":[...]}                     server→client on connect
+//   {"type":"req", "v":1, "id":"<uuid>", "method":"<name>", "params":{}}   client→server
+//   {"type":"res", "v":1, "id":"<uuid>", "ok":true,  "result":{}}          server→client
+//   {"type":"res", "v":1, "id":"<uuid>", "ok":false,
+//    "error":{"code":-32601,"name":"METHOD_NOT_FOUND","message":"..."}}     server→client
+//   {"type":"evt", "v":1, "session_id":"...", "seq":N, "event_type":"...",
+//    "tick":N, "agent_id":"...", "ts":"...Z", "data":{}}                    server→client
 //
-// One receive loop demultiplexes responses (by id) from events (no id).
+// One receive loop demultiplexes hlo/res/evt frames.
 // Pending requests are awaited via TaskCompletionSource keyed on id.
 
 using System;
@@ -39,9 +44,10 @@ namespace Biomata.SDK.Transport
     internal sealed class WebSocketTransport : ITransport
     {
         // ── Wire protocol constants ───────────────────────────────────────────
-        // Centralised so the Python protocol.py is the single source of truth
-        // and these strings match exactly.
+        // Must match src/transport/websocket/protocol.py exactly.
 
+        private const int    PROTOCOL_VERSION = 1;
+        private const string T_HELLO    = "hlo";
         private const string T_REQUEST  = "req";
         private const string T_RESPONSE = "res";
         private const string T_EVENT    = "evt";
@@ -73,6 +79,17 @@ namespace Biomata.SDK.Transport
         // Serialize sends — ClientWebSocket.SendAsync isn't safe to call from
         // multiple tasks concurrently on the same socket.
         private readonly SemaphoreSlim _sendLock = new(1, 1);
+
+        // ── Server info (populated from hlo frame) ────────────────────────────
+
+        /// <summary>Server software version string received in the hello frame.</summary>
+        public string ServerVersion { get; private set; } = string.Empty;
+
+        /// <summary>Capability strings the server declared in the hello frame.</summary>
+        public IReadOnlyList<string> ServerCapabilities { get; private set; } = Array.Empty<string>();
+
+        /// <summary>Tick mode declared by the server in the hello frame ("host_driven" or "autonomous").</summary>
+        public string ServerTickMode { get; private set; } = "host_driven";
 
         // ── ITransport state ──────────────────────────────────────────────────
 
@@ -246,8 +263,24 @@ namespace Biomata.SDK.Transport
 
         private void DispatchFrame(string text)
         {
-            var obj = JObject.Parse(text);
+            var obj  = JObject.Parse(text);
             var type = (string)obj["type"];
+
+            if (type == T_HELLO)
+            {
+                var serverV = (int?)obj["v"] ?? 0;
+                if (serverV != PROTOCOL_VERSION)
+                    UnityEngine.Debug.LogWarning(
+                        $"[Biomata] Server protocol v{serverV} differs from client v{PROTOCOL_VERSION}. " +
+                        "Some features may not work correctly.");
+                ServerVersion      = (string)obj["server_version"] ?? string.Empty;
+                ServerCapabilities = obj["capabilities"] is JArray caps
+                    ? caps.ToObject<List<string>>() ?? (IReadOnlyList<string>)Array.Empty<string>()
+                    : Array.Empty<string>();
+                ServerTickMode = (string)obj["tick_mode"] ?? "host_driven";
+                UnityEngine.Debug.Log($"[Biomata] Connected — tick mode: {ServerTickMode}");
+                return;
+            }
 
             if (type == T_RESPONSE)
             {
@@ -265,8 +298,21 @@ namespace Biomata.SDK.Transport
                 }
                 else
                 {
-                    var err = (string)obj["error"] ?? "unknown error";
-                    tcs.TrySetException(new BiomataException(err));
+                    // v1 structured error: {"code": N, "name": "...", "message": "..."}
+                    // Fall back to plain string for any pre-v1 server still in the field.
+                    string errMsg;
+                    var errToken = obj["error"];
+                    if (errToken is JObject errObj)
+                    {
+                        var name = (string)errObj["name"] ?? "ERROR";
+                        var msg  = (string)errObj["message"] ?? "unknown error";
+                        errMsg = $"[{name}] {msg}";
+                    }
+                    else
+                    {
+                        errMsg = errToken?.ToString() ?? "unknown error";
+                    }
+                    tcs.TrySetException(new BiomataException(errMsg));
                 }
                 return;
             }
@@ -311,6 +357,7 @@ namespace Biomata.SDK.Transport
             var envelope = new JObject
             {
                 ["type"]   = T_REQUEST,
+                ["v"]      = PROTOCOL_VERSION,
                 ["id"]     = id,
                 ["method"] = method,
                 ["params"] = parameters ?? new JObject(),

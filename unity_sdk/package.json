@@ -15,7 +15,6 @@
     "ai",
     "npc",
     "websocket",
-    "grpc",
     "agents"
   ],
   "author": {
@@ -26,7 +25,7 @@
   "samples": [
     {
       "displayName": "Smoke Test",
-      "description": "Minimal scene that verifies the SDK compiles and connects to a running biomata-engine server (biomata-ws or biomata-grpc). Provides Connect / Health Check / Register Agent buttons and a live event log.",
+      "description": "Minimal scene that verifies the SDK compiles and connects to a running biomata-engine WebSocket server (biomata-ws). Provides Connect / Health Check / Register Agent buttons and a live event log.",
       "path": "Samples~/SmokeTest"
     },
     {
@@ -36,7 +35,7 @@
     },
     {
       "displayName": "Visual Demo",
-      "description": "Two demos in one sample. VisualValidationDemo: full LLM pipeline — OllamaLLMBrain drives one cube via WebSocket. MultiAgentOrchestrationDemo: 20 colored cubes patrolling simultaneously via WaypointBrain, proving concurrent multi-agent orchestration. Backend: biomata-ws --config examples/visual_demo/sim.yaml --port 8765.",
+      "description": "Two demos in one sample. VisualValidationDemo: full LLM pipeline — OllamaLLMBrain drives one cube via WebSocket. MultiAgentOrchestrationDemo: 20 white cubes moving simultaneously each driven by OllamaLLMBrain, proving concurrent multi-agent orchestration. Backend: biomata-ws --config examples/visual_demo/sim.yaml --port 8765.",
       "path": "Samples~/VisualDemo"
     }
   ]

@@ -101,7 +101,7 @@ class AgentRuntime:
         intent = await agent.brain.decide(
             agent       = view,
             observation = observation,
-            actions     = self.registry.schemas(),
+            actions     = self.registry.schemas_for(agent.capabilities),
             context     = context,
         )
 

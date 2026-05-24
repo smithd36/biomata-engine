@@ -1,14 +1,11 @@
 // Biomata.SDK — ITransport.cs
 //
-// Internal abstraction for the wire-level transport. Two implementations:
-//   - WebSocketTransport   (default for Unity 6 — text JSON over System.Net.WebSockets)
-
-// The sub-clients (HealthClient, AgentClient, …) depend ONLY on this interface.
-// SimulationClient picks the concrete transport at ConnectAsync based on
-// BiomataConfig.Transport.
+// Internal wire-level transport contract. The concrete implementation is
+// WebSocketTransport (JSON over System.Net.WebSockets).
 //
+// The sub-clients (HealthClient, AgentClient, …) depend ONLY on this interface.
 // All methods are async and accept a CancellationToken. Errors are surfaced as
-// BiomataException so the sub-clients don't need transport-specific catch blocks.
+// BiomataException so callers don't need transport-specific catch blocks.
 
 using System;
 using System.Collections.Generic;
@@ -19,9 +16,8 @@ using Biomata.SDK.Models;
 namespace Biomata.SDK.Transport
 {
     /// <summary>
-    /// Wire-level transport contract. Surfaces every RPC the Python SimulationSession
-    /// exposes plus the asynchronous event stream. Methods translate to either
-    /// gRPC RPCs or WebSocket request/response frames depending on the implementation.
+    /// Wire-level transport contract. Surfaces every method the Python SimulationSession
+    /// exposes plus the asynchronous event stream. Implemented by WebSocketTransport.
     /// </summary>
     internal interface ITransport : IAsyncDisposable
     {
@@ -34,7 +30,7 @@ namespace Biomata.SDK.Transport
         Task ConnectAsync(CancellationToken ct = default);
         Task DisconnectAsync();
 
-        // ── Typed RPCs (mirror Biomata.Proto.SimulationService) ──────────────
+        // ── Methods ───────────────────────────────────────────────────────────
 
         Task<HealthStatus>  HealthCheckAsync(CancellationToken ct = default);
         Task                RegisterAgentAsync(AgentRegistration registration, CancellationToken ct = default);

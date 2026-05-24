@@ -46,7 +46,7 @@ from src.service.dto import (
     StepRequest, StepResponse,
 )
 from src.service.events import EventStreamAdapter
-from src.service.interfaces import EventHandler, SessionState
+from src.service.interfaces import EventHandler, SessionState, TickMode
 
 
 class SessionError(Exception):
@@ -60,24 +60,36 @@ class SimulationSession:
     Implements SimulationController structurally (duck-typing) — no
     inheritance from the Protocol is required or desired.
 
-    Lifecycle
-    ─────────
-    CREATED → (step or run) → RUNNING → STOPPED
-                                ↕
-                             PAUSED
+    Tick modes
+    ──────────
+    HOST_DRIVEN (default)
+        The external client drives timing by calling step().
+        pause() / resume() / run() raise SessionError.
+        Lifecycle: CREATED → RUNNING (per step) → STOPPED
 
-    step() is valid in CREATED, RUNNING, and PAUSED states.
-    run()  transitions to RUNNING and runs until all ticks complete or
-           shutdown() is called.
+    AUTONOMOUS
+        The session drives its own tick loop via run().
+        step() raises SessionError.
+        Lifecycle: CREATED → RUNNING → PAUSED ↔ RUNNING → STOPPED
     """
 
-    def __init__(self, simulation: Simulation, session_id: str | None = None) -> None:
+    def __init__(
+        self,
+        simulation: Simulation,
+        session_id: str | None = None,
+        tick_mode:  TickMode   = TickMode.HOST_DRIVEN,
+    ) -> None:
         self._sim        = simulation
         self._session_id = session_id or str(uuid.uuid4())
+        self._tick_mode  = tick_mode
         self._state      = SessionState.CREATED
         self._paused     = asyncio.Event()
         self._paused.set()   # not paused initially — set means "not paused"
         self._adapter    = EventStreamAdapter(simulation.bus, self._session_id)
+
+    @property
+    def tick_mode(self) -> TickMode:
+        return self._tick_mode
 
     # ── SimulationController properties ──────────────────────────────────────
 
@@ -99,11 +111,15 @@ class SimulationSession:
         """
         Execute one cognition tick and return a StepResponse.
 
-        If request carries observations or metadata and the world supports
-        the ExternalWorld protocol, they are pushed before the tick.
-
-        Raises SessionError if the session is STOPPED or in ERROR state.
+        Only valid in HOST_DRIVEN mode. Raises SessionError in AUTONOMOUS mode
+        or when the session is STOPPED / ERROR.
         """
+        if self._tick_mode == TickMode.AUTONOMOUS:
+            raise SessionError(
+                "Cannot step: session is autonomous — the backend drives tick "
+                "timing. Subscribe to events and use pause/resume to control "
+                "the loop."
+            )
         if self._state in (SessionState.STOPPED, SessionState.ERROR):
             raise SessionError(
                 f"Cannot step: session is {self._state.value}"
@@ -153,10 +169,16 @@ class SimulationSession:
 
     async def run(self) -> None:
         """
-        Run all configured ticks to completion.
+        Run all configured ticks to completion. AUTONOMOUS mode only.
 
         Honours pause() / resume() between ticks. Exits early on shutdown().
+        Raises SessionError if called in HOST_DRIVEN mode or when stopped.
         """
+        if self._tick_mode == TickMode.HOST_DRIVEN:
+            raise SessionError(
+                "Cannot run: session is host-driven — call step() for each "
+                "tick instead."
+            )
         if self._state == SessionState.STOPPED:
             raise SessionError("Cannot run: session is stopped")
 
@@ -180,13 +202,29 @@ class SimulationSession:
     # ── Lifecycle control ─────────────────────────────────────────────────────
 
     def pause(self) -> None:
-        """Suspend the run() loop after the current tick completes."""
+        """
+        Suspend the autonomous tick loop after the current tick completes.
+        AUTONOMOUS mode only. Raises SessionError in HOST_DRIVEN mode.
+        """
+        if self._tick_mode == TickMode.HOST_DRIVEN:
+            raise SessionError(
+                "Cannot pause: session is host-driven — the client controls "
+                "timing by calling tick."
+            )
         if self._state == SessionState.RUNNING:
             self._state = SessionState.PAUSED
             self._paused.clear()
 
     def resume(self) -> None:
-        """Resume a paused run() loop."""
+        """
+        Resume a paused autonomous tick loop.
+        AUTONOMOUS mode only. Raises SessionError in HOST_DRIVEN mode.
+        """
+        if self._tick_mode == TickMode.HOST_DRIVEN:
+            raise SessionError(
+                "Cannot resume: session is host-driven — the client controls "
+                "timing by calling tick."
+            )
         if self._state == SessionState.PAUSED:
             self._state = SessionState.RUNNING
             self._paused.set()
@@ -235,6 +273,7 @@ class SimulationSession:
             config_ticks  = self._sim.config.ticks,
             agent_count   = len(self._sim.agents),
             has_world_snap= isinstance(self._sim.world, Snapshotable),
+            tick_mode     = self._tick_mode.value,
         )
 
 
@@ -243,23 +282,22 @@ class SimulationSession:
 def create_session(
     simulation:  Simulation,
     session_id:  str | None = None,
+    tick_mode:   TickMode   = TickMode.HOST_DRIVEN,
 ) -> SimulationSession:
     """
     Create a SimulationSession from a pre-built Simulation.
 
-    The simplest entry point for both YAML-driven and programmatic setups:
+    tick_mode selects who drives timing:
 
-        sim     = Simulation.from_config("sim.yaml")
-        session = create_session(sim)
-        await session.run()
-
-    Or for external-world integration:
-
+    HOST_DRIVEN (default) — client calls step()/tick on demand:
         world   = HostedWorld()
         sim     = Simulation(agents=..., world=world, registry=...)
-        session = create_session(sim)
-
-        world.push_observation(agent_id, obs)
+        session = create_session(sim, tick_mode=TickMode.HOST_DRIVEN)
         response = await session.step(StepRequest(...))
+
+    AUTONOMOUS — backend self-ticks at configured rate:
+        sim     = Simulation.from_config("sim.yaml")
+        session = create_session(sim, tick_mode=TickMode.AUTONOMOUS)
+        await session.run()   # honours pause() / resume()
     """
-    return SimulationSession(simulation, session_id=session_id)
+    return SimulationSession(simulation, session_id=session_id, tick_mode=tick_mode)

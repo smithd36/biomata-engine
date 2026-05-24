@@ -174,11 +174,12 @@ def _build_simulation(cfg: dict, base_dir: str = ".") -> "Simulation":  # noqa: 
             state_ext = ext_class(**ext_raw)
 
         agent = Agent(
-            id        = a_cfg["id"],
-            name      = a_cfg["name"],
-            brain     = brain,
-            memory    = memory,
-            state_ext = state_ext,
+            id           = a_cfg["id"],
+            name         = a_cfg["name"],
+            brain        = brain,
+            memory       = memory,
+            state_ext    = state_ext,
+            capabilities = frozenset(a_cfg.get("capabilities") or []),
         )
         agents.append(agent)
 

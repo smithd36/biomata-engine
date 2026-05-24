@@ -2,17 +2,10 @@
 
 Unity C# client SDK for the [biomata-engine](../README.md) backend.
 
-The SDK ships **two** transports and lets the consumer pick one via config:
-
-| Transport | Default for | Why                                                                      |
-|-----------|------------|---------------------------------------------------------------------------|
-| **WebSocket** (default) | Unity 6 (game clients) | JSON over `System.Net.WebSockets.ClientWebSocket`. Compiles cleanly on Unity 6 without the `SocketsHttpHandler` reference-assembly issue. |
-| **gRPC**    | Research / server-to-server | Protobuf over `Grpc.Net.Client`. Higher throughput, typed contracts. Available for power users. |
-
-Both transports drive the same `SimulationSession` on the Python side — the
-engine is transport-agnostic. The SDK's public API (`BiomataManager`,
-`SimulationClient`, sub-clients) is unchanged between the two; only
-`BiomataConfig.Transport` toggles the wire.
+The SDK uses **JSON over WebSocket** as its transport — text frames over
+`System.Net.WebSockets.ClientWebSocket`. This works on every platform Unity 6
+targets and needs no code generation. See `docs/websocket-protocol.md` for the
+authoritative wire-format spec.
 
 ## Requirements
 
@@ -56,44 +49,33 @@ unity_sdk/
 │  │  ├─ TickClient.cs
 │  │  ├─ EventStreamClient.cs
 │  │  └─ SnapshotClient.cs
-│  ├─ Transport/                    # pluggable transports behind ITransport
+│  ├─ Transport/                    # ITransport contract + WebSocketTransport
 │  │  ├─ ITransport.cs
-│  │  ├─ WebSocketTransport.cs      # default, Unity 6-friendly
-│  │  ├─ GrpcTransport.cs           # opt-in via config
+│  │  ├─ WebSocketTransport.cs
 │  │  └─ JsonHelpers.cs
-│  ├─ Core/                         # SimulationClient, BiomataConfig, ProtoUtils
-│  ├─ Generated/                    # pre-built gRPC C# stubs (used by GrpcTransport only)
+│  ├─ Core/                         # SimulationClient, BiomataConfig, helpers
 │  ├─ Integration/                  # MonoBehaviour glue
 │  ├─ Models/                       # DTOs (AgentRegistration, TickResult, …)
-│  ├─ Plugins/                      # vendored gRPC + Protobuf DLLs
 │  └─ Unity/                        # BiomataManager singleton
 ├─ Editor/                          # Inspector overrides
 ├─ Samples~/SmokeTest/              # one-script smoke test
-├─ Proto/                           # source of truth — simulation.proto
-└─ Scripts/                         # developer-only: vendor.py
+├─ Samples~/PatrolDemo/             # two NPC capsules driven by WaypointBrain
+└─ Samples~/VisualDemo/             # LLM pipeline + 20-agent orchestration demo
 ```
 
 ## Quick start
 
-### 1. Start the Python backend (WebSocket)
+### 1. Start the Python backend
 
 ```bash
 pip install -e ".[websocket]"
 biomata-ws --config examples/corporate/sim.yaml --port 8765
 ```
 
-For gRPC instead:
-
-```bash
-pip install -e ".[grpc]"
-biomata-grpc --config examples/corporate/sim.yaml --port 50051
-```
-
 ### 2. Add `BiomataManager` to a scene
 
-Attach the `BiomataManager` component to a persistent GameObject. Inspector
-exposes **Transport**, **Host**, **Port**, **UseTls**, and connection
-timeouts.
+Attach the `BiomataManager` component to a persistent GameObject. The Inspector
+exposes **Host**, **Port**, **UseTls**, and connection timeouts.
 
 ### 3. Register an agent and tick
 
@@ -122,30 +104,12 @@ foreach (var decision in result.Decisions)
     ApplyDecision(decision);
 ```
 
-The same call site works identically whether `BiomataConfig.Transport` is
-`WebSocket` or `Grpc`. Only the wire format changes.
-
 ### 4. Subscribe to events
 
 ```csharp
 biomata.Client.Events.On("tick_end",         ev => Debug.Log($"tick {ev.Tick}"));
 biomata.Client.Events.On("action_completed", ev => UpdateHUD(ev.AgentId, ev.Data.GetString("action")));
 ```
-
-## Transport selection at runtime
-
-```csharp
-var client = new SimulationClient(new BiomataConfig
-{
-    Transport = TransportKind.WebSocket,   // or TransportKind.Grpc
-    Host      = "localhost",
-    Port      = 8765,                       // 50051 for gRPC
-});
-await client.ConnectAsync(destroyCancellationToken);
-```
-
-`SimulationClient.ActiveTransport` reports the current selection (useful for
-logging / diagnostics).
 
 ## Smoke Test
 
@@ -158,9 +122,9 @@ in a new scene. See `Samples~/SmokeTest/README.md` for full usage.
 ## Connection resilience
 
 `EventStreamClient` raises `OnDisconnected` when the underlying stream drops.
-Per-RPC failures throw `BiomataException` so call sites can handle them
-explicitly. Reconnection policy lives in `BiomataConfig.Retry` — currently
-consumed by gRPC; WebSocket reconnect is on the roadmap.
+Per-call failures throw `BiomataException` so call sites can handle them
+explicitly. Reconnection policy lives in `BiomataConfig.Retry`. Automatic
+WebSocket reconnect is on the roadmap.
 
 ## Platform support
 
@@ -170,42 +134,28 @@ consumed by gRPC; WebSocket reconnect is on the roadmap.
 | Standalone (Win / macOS / Linux) | ✅ Mono or IL2CPP |
 | Android | ✅ via IL2CPP (link.xml protects against stripping) |
 | iOS | ✅ via IL2CPP |
-| WebGL | ❌ excluded — neither transport supports browser sockets without a JS shim |
+| WebGL | ❌ excluded — `System.Net.WebSockets.ClientWebSocket` is not available in browser WebGL without a JS shim |
 
-## Maintenance — regenerating Generated/ and Plugins/
+## Wire protocol
 
-You only do this when:
-- `Proto/simulation.proto` changes, or
-- you bump pinned NuGet versions, or
-- you want to rebuild the committed binaries from scratch.
-
-```bash
-cd unity_sdk
-python Scripts/vendor.py
-```
-
-End users never run `vendor.py`. The outputs are committed to the repo so a
-fresh `git clone` + UPM import yields a working SDK with no toolchain setup.
-
-## Wire protocols
-
-### WebSocket (JSON)
-
-Three frame shapes — see `src/transport/websocket/protocol.py` for the
-authoritative spec.
+Transport is JSON over WebSocket — see `docs/websocket-protocol.md` for the
+full spec. Summary of frame shapes:
 
 ```
-{"type":"req", "id":"<uuid>", "method":"<name>", "params":{...}}
-{"type":"res", "id":"<uuid>", "ok":true,  "result":{...}}
-{"type":"res", "id":"<uuid>", "ok":false, "error":"..."}
-{"type":"evt", "event_type":"tick_end", "tick":3, "agent_id":"engine", "data":{...}}
+Server → Client (on connect):
+  {"type":"hlo", "v":1, "server":"biomata-engine", "session_id":"<uuid>", "capabilities":[...]}
+
+Client → Server:
+  {"type":"req", "v":1, "id":"<uuid>", "method":"<name>", "params":{...}}
+
+Server → Client (response):
+  {"type":"res", "v":1, "id":"<uuid>", "ok":true,  "result":{...}}
+  {"type":"res", "v":1, "id":"<uuid>", "ok":false, "error":{"code":-32601,"name":"METHOD_NOT_FOUND","message":"..."}}
+
+Server → Client (event stream):
+  {"type":"evt", "v":1, "session_id":"<uuid>", "seq":42, "event_type":"tick_end", "tick":5, "agent_id":"engine", "ts":"...", "data":{}}
 ```
 
 Methods: `health_check`, `register_agent`, `remove_agent`, `send_observation`,
 `tick`, `pause`, `resume`, `snapshot`, `restore`, `subscribe_events`,
 `unsubscribe_events`.
-
-### gRPC
-
-See `src/transport/grpc/proto/simulation.proto`. The service surface mirrors
-the WebSocket method list 1:1.

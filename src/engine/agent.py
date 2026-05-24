@@ -18,12 +18,13 @@ from src.contracts.brain import Brain
 
 @dataclass
 class Agent:
-    id:        str
-    name:      str
-    brain:     Brain
-    memory:    Memory
-    inventory: dict[str, Any]              = field(default_factory=dict)
-    state_ext: AgentStateExtension | None  = None
+    id:           str
+    name:         str
+    brain:        Brain
+    memory:       Memory
+    inventory:    dict[str, Any]              = field(default_factory=dict)
+    state_ext:    AgentStateExtension | None  = None
+    capabilities: frozenset[str]              = field(default_factory=frozenset)
 
     def view(self) -> "AgentView":                          # noqa: F821
         from src.contracts.world import AgentView

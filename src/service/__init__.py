@@ -33,6 +33,7 @@ from src.service.interfaces import (
     EventHandler,
     SessionState,
     SimulationController,
+    TickMode,
 )
 from src.service.session import (
     SessionError,
@@ -50,6 +51,7 @@ __all__ = [
     "SimulationStatus",
     # Interfaces
     "SessionState",
+    "TickMode",
     "EventHandler",
     "SimulationController",
     # Session

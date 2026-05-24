@@ -32,9 +32,8 @@ namespace Biomata.Samples
         // ── Inspector ─────────────────────────────────────────────────────────
 
         [Header("Backend")]
-        [SerializeField] private string        host      = "localhost";
-        [SerializeField] private int           port      = 8765;
-        [SerializeField] private TransportKind transport = TransportKind.WebSocket;
+        [SerializeField] private string host = "localhost";
+        [SerializeField] private int    port = 8765;
 
         [Header("Simulation")]
         [Tooltip("Ticks per second. 20 concurrent Ollama calls per tick — keep ≤ 0.3 unless your GPU is fast.")]
@@ -224,7 +223,6 @@ namespace Biomata.Samples
             go.SetActive(false);
 
             _simMgr = go.AddComponent<UnitySimulationManager>();
-            SetField(_simMgr, "transport",   transport);
             SetField(_simMgr, "host",        host);
             SetField(_simMgr, "port",        port);
             SetField(_simMgr, "tickRate",    tickRate);

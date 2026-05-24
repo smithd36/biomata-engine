@@ -1,8 +1,8 @@
 // Biomata.SDK — MainThreadDispatcher.cs
 //
 // Captures Unity's main-thread SynchronizationContext at startup and exposes
-// Dispatch(Action) so background tasks (gRPC response callbacks, event stream
-// handlers) can safely update UnityEngine objects.
+// Dispatch(Action) so background tasks (WebSocket event stream handlers, etc.)
+// can safely update UnityEngine objects.
 //
 // Usage:
 //   MainThreadDispatcher.Dispatch(() => myRenderer.material.color = Color.red);

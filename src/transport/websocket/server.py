@@ -3,9 +3,7 @@ src/transport/websocket/server.py
 ──────────────────────────────────────────────────────────────
 WebSocketServer — lifecycle wrapper around `websockets.serve`.
 
-Mirrors the GrpcServer surface (start, stop, serve, from_config,
-from_simulation) so transport-agnostic tests and embedding code work the
-same way against either transport.
+API surface: start, stop, serve, from_config, from_simulation.
 
 Usage — programmatic
 ────────────────────
@@ -40,7 +38,7 @@ from typing import Any
 
 import websockets
 
-from src.service import SimulationSession, create_session
+from src.service import SimulationSession, TickMode, create_session
 from src.transport.websocket.handler import ConnectionHandler
 
 
@@ -51,9 +49,9 @@ class WebSocketServer:
     """
     Hosts one SimulationSession over a WebSocket port.
 
-    A single SimulationSession is shared across all active connections —
-    same model as the gRPC transport. Each connection gets its own
-    ConnectionHandler with its own event subscription and queue.
+    A single SimulationSession is shared across all active connections.
+    Each connection gets its own ConnectionHandler with its own event
+    subscription and queue.
 
     Parameters
     ──────────
@@ -64,6 +62,20 @@ class WebSocketServer:
                          warning when exceeded.
     max_size           — max WebSocket frame size in bytes (default 16 MiB —
                          needed for large snapshot frames).
+
+    Tick modes
+    ──────────
+    The session's tick_mode determines who drives timing:
+
+    HOST_DRIVEN (default) — client sends ``tick`` requests; server never
+                            self-ticks. The session must have been created with
+                            TickMode.HOST_DRIVEN.
+
+    AUTONOMOUS            — server calls session.run() in the background when
+                            serve()/start() is called. Clients use
+                            ``pause``/``resume`` to control the loop. The
+                            session must have been created with
+                            TickMode.AUTONOMOUS.
     """
 
     def __init__(
@@ -81,16 +93,22 @@ class WebSocketServer:
         self._max_size         = max_size
         self._server:          Any = None
         self._bound_port:      int | None = None
+        self._run_task:        asyncio.Task | None = None
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     async def start(self) -> int:
-        """Bind and start accepting connections. Returns the bound port."""
+        """
+        Bind and start accepting connections. Returns the bound port.
+
+        In AUTONOMOUS mode, also starts the session.run() tick loop as a
+        background task so clients can subscribe to events immediately.
+        """
         self._server = await websockets.serve(
             self._on_connection,
-            host       = self._host,
-            port       = self._port,
-            max_size   = self._max_size,
+            host        = self._host,
+            port        = self._port,
+            max_size    = self._max_size,
             # Disable per-message permessage-deflate by default — for local
             # gameplay traffic the CPU cost outweighs the bandwidth saving.
             compression = None,
@@ -104,14 +122,31 @@ class WebSocketServer:
         else:
             self._bound_port = self._port
 
+        mode = self._session.tick_mode.value
         logger.info(
-            "WebSocket server listening on ws://%s:%d",
-            self._host, self._bound_port,
+            "WebSocket server listening on ws://%s:%d  [%s]",
+            self._host, self._bound_port, mode,
         )
+
+        if self._session.tick_mode == TickMode.AUTONOMOUS:
+            self._run_task = asyncio.create_task(
+                self._session.run(), name="biomata-autonomous-loop"
+            )
+            logger.info("Autonomous tick loop started")
+
         return self._bound_port
 
     async def stop(self) -> None:
         """Close the server and wait for in-flight connections to drain."""
+        if self._run_task is not None:
+            self._session.shutdown()
+            self._run_task.cancel()
+            try:
+                await self._run_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            self._run_task = None
+
         if self._server is None:
             return
         self._server.close()
@@ -152,10 +187,11 @@ class WebSocketServer:
         cls,
         simulation: Any,
         session_id: str | None = None,
+        tick_mode:  TickMode   = TickMode.HOST_DRIVEN,
         **kwargs: Any,
     ) -> "WebSocketServer":
         """Create a WebSocketServer from a pre-built Simulation."""
-        session = create_session(simulation, session_id=session_id)
+        session = create_session(simulation, session_id=session_id, tick_mode=tick_mode)
         return cls(session, **kwargs)
 
     @classmethod
@@ -163,12 +199,13 @@ class WebSocketServer:
         cls,
         config_path: str,
         session_id:  str | None = None,
+        tick_mode:   TickMode   = TickMode.HOST_DRIVEN,
         **kwargs:    Any,
     ) -> "WebSocketServer":
         """Create a WebSocketServer from a YAML sim config."""
         from src.engine.simulation import Simulation
         sim = Simulation.from_config(config_path)
-        return cls.from_simulation(sim, session_id=session_id, **kwargs)
+        return cls.from_simulation(sim, session_id=session_id, tick_mode=tick_mode, **kwargs)
 
     # ── Convenience: run until signal ─────────────────────────────────────────
 

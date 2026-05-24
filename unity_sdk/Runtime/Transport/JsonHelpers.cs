@@ -1,8 +1,7 @@
 // Biomata.SDK — JsonHelpers.cs
 //
-// JObject ↔ Dictionary<string, object> conversion. Mirrors what
-// ProtoUtils.FromStruct does for protobuf — the rest of the SDK consumes
-// plain BCL dictionaries, so the transport layer is the only place that
+// JObject ↔ Dictionary<string, object> conversion. The rest of the SDK
+// consumes plain BCL dictionaries; this file is the only place that
 // touches Newtonsoft.Json types.
 
 using System.Collections.Generic;
@@ -14,12 +13,8 @@ namespace Biomata.SDK.Transport
     internal static class JsonHelpers
     {
         /// <summary>
-        /// Convert a JToken (Object / Array / primitive) into the same plain-BCL
-        /// shape ProtoUtils.FromStruct produces: Dictionary&lt;string, object&gt;,
-        /// List&lt;object&gt;, primitives, or null.
-        ///
-        /// Keeping both transports producing identical output shapes is what
-        /// lets the rest of the SDK be transport-agnostic.
+        /// Convert a JToken (Object / Array / primitive) into a plain-BCL value:
+        /// Dictionary&lt;string, object&gt;, List&lt;object&gt;, primitive, or null.
         /// </summary>
         public static object FromToken(JToken token)
         {
@@ -31,9 +26,9 @@ namespace Biomata.SDK.Transport
                 case JTokenType.Array:
                     return FromArray((JArray)token);
                 case JTokenType.Integer:
-                    // Match ProtoUtils.FromStruct, which maps protobuf NumberValue
-                    // to double. Keeping numeric type identical between transports
-                    // means consumer code doesn't need transport-aware unboxing.
+                    // Cast to double to match the float representation JSON numbers
+                    // get when decoded by the Python server (all numbers are float
+                    // in json.loads output), keeping consumer unboxing uniform.
                     return (double)token.Value<long>();
                 case JTokenType.Float:
                     return token.Value<double>();

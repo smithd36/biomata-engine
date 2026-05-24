@@ -11,8 +11,7 @@ namespace Biomata.SDK.Clients
 {
     /// <summary>
     /// Sends health-check probes to verify the server is alive and responsive.
-    /// Transport-agnostic — delegates to ITransport which may be backed by
-    /// WebSocket or gRPC depending on BiomataConfig.Transport.
+    /// Delegates to ITransport (WebSocketTransport).
     /// </summary>
     public class HealthClient
     {
@@ -31,8 +30,8 @@ namespace Biomata.SDK.Clients
             CancellationToken ct             = default,
             float             timeoutSeconds = 0f)
         {
-            // timeoutSeconds is kept for API parity with the old gRPC client.
-            // Each transport applies its own per-call deadline from BiomataConfig.
+            // timeoutSeconds is unused; the transport applies its own per-call
+            // deadline from BiomataConfig. Kept for call-site compatibility.
             return _transport.HealthCheckAsync(ct);
         }
 

@@ -124,9 +124,10 @@ class ServiceEvent:
 @dataclass
 class SimulationStatus:
     """Current operational state of a SimulationSession."""
-    session_id:    str
-    state:         str       # SessionState.value
-    tick:          int
-    config_ticks:  int       # total ticks configured
-    agent_count:   int
-    has_world_snap: bool     # True if world implements Snapshotable
+    session_id:     str
+    state:          str       # SessionState.value
+    tick:           int
+    config_ticks:   int       # total ticks configured
+    agent_count:    int
+    has_world_snap: bool      # True if world implements Snapshotable
+    tick_mode:      str = "host_driven"   # TickMode.value

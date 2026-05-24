@@ -40,9 +40,8 @@ namespace Biomata.SDK.Models
         public bool IsSuccess => string.IsNullOrEmpty(Error);
 
         /// <summary>
-        /// Transport-neutral constructor. Used by WebSocketTransport once a
-        /// JSON response has been decoded into plain BCL types. The gRPC path
-        /// uses the proto-based constructor above to avoid an extra copy.
+        /// Used by WebSocketTransport after a JSON response has been decoded
+        /// into plain BCL types.
         /// </summary>
         internal AgentDecisionResult(
             string                                       agentId,

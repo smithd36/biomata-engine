@@ -33,8 +33,8 @@ namespace Biomata.SDK.Models
         public string AgentId { get; }
 
         /// <summary>
-        /// Event-type-specific payload, pre-converted from protobuf Struct.
-        /// Use the <see cref="ProtoUtils"/> extension methods for convenient access:
+        /// Event-type-specific payload decoded from the JSON event frame.
+        /// Use the extension methods for convenient access:
         ///   <c>ev.Data.GetString("action")</c>, <c>ev.Data.GetNumber("health")</c>
         /// </summary>
         public Dictionary<string, object> Data { get; }
