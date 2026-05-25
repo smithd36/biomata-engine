@@ -72,8 +72,7 @@ class ReplayBrain:
             self.inner    = inner
             self.path.parent.mkdir(parents=True, exist_ok=True)
             self._out     = open(self.path, "w", encoding="utf-8")
-            self._by_agent: dict[str, list[dict]] = {}  # unused in record, kept for symmetry
-            self._cursors:  dict[str, int]        = {}
+            self._cursors: dict[str, int] = {}
         else:
             self.inner    = None
             self._by_agent = self._load(self.path)

@@ -53,10 +53,19 @@ class WebSocketServer:
     Each connection gets its own ConnectionHandler with its own event
     subscription and queue.
 
+    Trust boundary
+    ──────────────
+    The WebSocket transport is designed for local-network use between the
+    Python backend and a trusted host engine (e.g., Unity running on the
+    same machine or LAN). It provides no authentication beyond HMAC-signed
+    snapshots. The default bind address is "127.0.0.1" (loopback only).
+    Pass host="0.0.0.0" only in controlled deployments where network-level
+    access controls prevent untrusted clients from reaching the port.
+
     Parameters
     ──────────
     session            — the SimulationSession to expose.
-    host               — bind host (default "0.0.0.0" = all interfaces).
+    host               — bind host (default "127.0.0.1" = loopback only).
     port               — port number (8765 by default; 0 = OS-assigned).
     event_queue_size   — per-connection event buffer; drops with logged
                          warning when exceeded.
@@ -81,7 +90,7 @@ class WebSocketServer:
     def __init__(
         self,
         session:          SimulationSession,
-        host:             str = "0.0.0.0",
+        host:             str = "127.0.0.1",
         port:             int = 8765,
         event_queue_size: int = 2048,
         max_size:         int = 16 * 1024 * 1024,

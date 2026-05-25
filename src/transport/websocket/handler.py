@@ -38,12 +38,14 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hmac
 import json
 import logging
+import os
 import pickle
 from typing import Any
 
-from src.contracts.snapshot import SnapshotError
+from src.contracts.snapshot import SimulationSnapshot, SnapshotError
 from src.engine.agent import Agent
 from src.plugins.builtin.simple_memory.memory import SimpleMemory
 from src.service import (
@@ -69,6 +71,28 @@ from src.transport.websocket.protocol import (
 logger = logging.getLogger(__name__)
 
 _DEFAULT_EVENT_QUEUE_SIZE = 2048
+
+# ── Snapshot signing ──────────────────────────────────────────────────────────
+# Ephemeral key generated once per process. Snapshots are signed on the way
+# out and verified on the way in, so a client cannot inject arbitrary pickle
+# data even if the port is reachable from an untrusted host.
+# The key is NOT persisted — snapshots from a previous process will not
+# verify and must be re-created. This is intentional: the snapshot wire format
+# is an internal round-trip mechanism, not a durable persistence format.
+_SIGNING_KEY: bytes = os.urandom(32)
+
+
+def _sign(data: bytes) -> str:
+    return hmac.new(_SIGNING_KEY, data, "sha256").hexdigest()
+
+
+def _verify(data: bytes, tag: str) -> bool:
+    try:
+        given = bytes.fromhex(tag)
+    except (ValueError, TypeError):
+        return False
+    expected = hmac.new(_SIGNING_KEY, data, "sha256").digest()
+    return hmac.compare_digest(expected, given)
 
 
 def _import_dotted(dotted: str) -> Any:
@@ -333,22 +357,57 @@ class ConnectionHandler:
 
     def _handle_snapshot(self) -> dict[str, Any]:
         snap = self._session.snapshot()
+        raw  = pickle.dumps(snap)
         return {
-            "data_b64":   base64.b64encode(pickle.dumps(snap)).decode("ascii"),
-            "tick":       snap.tick,
-            "created_at": snap.created_at,
+            "data_b64":    base64.b64encode(raw).decode("ascii"),
+            "hmac_sha256": _sign(raw),
+            "tick":        snap.tick,
+            "created_at":  snap.created_at,
         }
 
     def _handle_restore(self, params: dict[str, Any]) -> dict[str, Any]:
         b64 = params.get("data_b64")
+        tag = params.get("hmac_sha256")
         if not isinstance(b64, str):
             raise ProtocolError("data_b64 (base64 string) is required", ErrorCode.INVALID_PARAMS)
+
         try:
-            snap = pickle.loads(base64.b64decode(b64))
+            raw = base64.b64decode(b64, validate=True)
+        except Exception:
+            logger.warning("ws: snapshot restore rejected — invalid base64 encoding")
+            raise ProtocolError("data_b64 is not valid base64", ErrorCode.SNAPSHOT_INVALID)
+
+        if not isinstance(tag, str) or not _verify(raw, tag):
+            logger.warning("ws: snapshot restore rejected — HMAC verification failed")
+            raise ProtocolError(
+                "snapshot HMAC verification failed — "
+                "snapshot was not produced by this server process",
+                ErrorCode.SNAPSHOT_INVALID,
+            )
+
+        try:
+            snap = pickle.loads(raw)
+        except Exception as exc:
+            logger.warning("ws: snapshot restore rejected — deserialization failed: %s", exc)
+            raise ProtocolError(
+                "snapshot data could not be deserialized", ErrorCode.SNAPSHOT_INVALID
+            ) from exc
+
+        if not isinstance(snap, SimulationSnapshot):
+            logger.warning(
+                "ws: snapshot restore rejected — unexpected type %r", type(snap).__name__
+            )
+            raise ProtocolError(
+                f"snapshot has unexpected type {type(snap).__name__!r}",
+                ErrorCode.SNAPSHOT_INVALID,
+            )
+
+        try:
             self._session.restore(snap)
-            return {"tick": snap.tick}
         except SnapshotError as exc:
             raise ProtocolError(str(exc), ErrorCode.INTERNAL_ERROR) from exc
+
+        return {"tick": snap.tick}
 
     # ── Event subscription ────────────────────────────────────────────────────
 

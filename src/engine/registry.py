@@ -12,6 +12,7 @@ from src.contracts.action import (
     ActionResult,
     ActionHandler,
     ActionSchema,
+    ActionValidationError,
 )
 
 
@@ -62,11 +63,43 @@ class ActionRegistry:
                 result.append(schema)
         return result
 
-    def actions_prompt_section(self) -> str:
-        lines = ["AVAILABLE ACTIONS (use exactly these names):"]
-        for schema, _ in self._entries.values():
-            lines.append(schema.prompt_block())
-        return "\n".join(lines)
+    def validate_intent(
+        self,
+        intent:       Intent,
+        capabilities: "frozenset[str]",
+    ) -> list[ActionValidationError]:
+        """
+        Validate an Intent before dispatch.
+
+        Checks (in order):
+          1. Action name is registered.
+          2. Agent capabilities satisfy the schema's tag requirements.
+          3. Intent parameters satisfy the schema's parameter specs.
+
+        Returns an empty list when the intent is valid.
+        Never raises — all failures are returned as structured errors.
+        """
+        entry = self._entries.get(intent.action)
+        if entry is None:
+            return [ActionValidationError(
+                code    = "unknown_action",
+                message = f"action '{intent.action}' is not registered",
+            )]
+
+        schema, _ = entry
+
+        if schema.tags and not (schema.tags & capabilities):
+            allowed = sorted(schema.tags)
+            have    = sorted(capabilities) or ["none"]
+            return [ActionValidationError(
+                code    = "capability_denied",
+                message = (
+                    f"action '{intent.action}' requires capability "
+                    f"{allowed} — agent has {have}"
+                ),
+            )]
+
+        return schema.validate_parameters(intent.parameters or {})
 
     def dispatch(
         self,

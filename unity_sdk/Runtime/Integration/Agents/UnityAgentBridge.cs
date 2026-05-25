@@ -39,6 +39,19 @@ namespace Biomata.Integration
         [Tooltip("Automatically register with the backend when the manager connects.")]
         [SerializeField] private bool autoRegister = true;
 
+        /// <summary>
+        /// Configure agent identity at runtime (call immediately after AddComponent, before Start).
+        ///
+        /// Use this instead of reflection when building agents procedurally. The
+        /// values set here take effect when Start() runs on the next frame.
+        /// </summary>
+        public void Configure(string agentId, string agentName = null, bool autoRegister = true)
+        {
+            this.agentId      = agentId;
+            this.agentName    = string.IsNullOrEmpty(agentName) ? agentId : agentName;
+            this.autoRegister = autoRegister;
+        }
+
         // ── Events ────────────────────────────────────────────────────────────────
 
         /// <summary>Fired on the main thread each time the backend sends a decision.</summary>

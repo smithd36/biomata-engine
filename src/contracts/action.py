@@ -4,11 +4,12 @@ src/contracts/action.py
 Contracts for the action system. These are the stable types that flow
 between engine, world, brain, and handlers.
 
-  ActionKind    — who executes the action: HOST | ENGINE | HYBRID
-  Intent        — what an agent wants to do (output of Brain.decide)
-  ActionResult  — what actually happened (output of ActionHandler.execute)
-  ActionHandler — user-implemented: one class per action
-  ActionSchema  — metadata about an action (shown to the LLM, validated against)
+  ActionKind           — who executes the action: HOST | ENGINE | HYBRID
+  ActionValidationError — structured error from intent/parameter validation
+  Intent               — what an agent wants to do (output of Brain.decide)
+  ActionResult         — what actually happened (output of ActionHandler.execute)
+  ActionHandler        — user-implemented: one class per action
+  ActionSchema         — metadata about an action (shown to the LLM, validated against)
 """
 from __future__ import annotations
 
@@ -25,6 +26,67 @@ class ActionKind(str, Enum):
     HOST   = "host"    # host (Unity/renderer) executes via engine_commands; Python only packages the command
     ENGINE = "engine"  # Python executes; may mutate world state, inventory, social graph
     HYBRID = "hybrid"  # both: Python processing AND host commands
+
+
+# ── ActionValidationError ─────────────────────────────────────────────────────
+
+@dataclass
+class ActionValidationError:
+    """
+    Structured error produced by intent or parameter validation.
+
+    Codes:
+      unknown_action   — action name not in registry
+      capability_denied — agent lacks a required capability tag
+      missing_param    — required parameter absent from intent.parameters
+      type_mismatch    — parameter present but wrong Python type
+    """
+    code:    str
+    message: str
+    field:   str | None = None   # parameter name, if applicable
+
+
+# ── Parameter-spec helpers ────────────────────────────────────────────────────
+
+# Maps canonical string tokens → Python types
+_PARAM_TYPE_MAP: dict[str, type] = {
+    "str":     str,  "string":  str,
+    "int":     int,  "integer": int,
+    "float":   float,
+    "bool":    bool, "boolean": bool,
+}
+
+
+def _parse_param_spec(spec: Any) -> tuple[type | None, bool]:
+    """
+    Parse a parameter spec value into (expected_type, is_required).
+
+    Accepts:
+      - Python type literal (str, int, float, bool) → required, type-validated
+      - "float"  / "str" / "int" / "bool"           → required, type-validated
+      - "float?" / "str?"                            → optional, type-validated
+      - "float (optional ...)"  — any string with "optional" → optional
+      - Descriptive strings ("string — what you say") → required str if first token matches
+      - dict or unrecognised value                   → (None, True) — skip validation
+    """
+    if isinstance(spec, type) and spec in (str, int, float, bool):
+        return spec, True
+
+    if not isinstance(spec, str):
+        return None, True   # dict / nested schema — skip
+
+    s = spec.strip()
+    optional = "optional" in s.lower()
+
+    # "float?" shorthand
+    if s.endswith("?"):
+        s = s[:-1].strip()
+        optional = True
+
+    # Take the first whitespace/punctuation-separated token as the type name
+    token = re.split(r"[\s,;:(|]", s)[0].lower()
+    expected = _PARAM_TYPE_MAP.get(token)
+    return expected, not optional
 
 
 # ── Intent ────────────────────────────────────────────────────────────────────
@@ -103,6 +165,13 @@ class ActionHandler(Protocol):
 
 # ── ActionSchema ──────────────────────────────────────────────────────────────
 
+def _render_param_spec(spec: Any) -> str:
+    """Render a parameter spec value as a human/LLM-readable string."""
+    if isinstance(spec, type):
+        return spec.__name__
+    return str(spec)
+
+
 @dataclass
 class ActionSchema:
     name:              str
@@ -116,9 +185,53 @@ class ActionSchema:
         kind_label = f"  [{self.kind.value}]" if self.kind != ActionKind.HYBRID else ""
         lines = [f"  {self.name}: {self.description}{kind_label}"]
         if self.parameters_schema:
-            params = json.dumps(self.parameters_schema, separators=(",", ":"))
-            lines.append(f"    params: {params}")
+            rendered = {k: _render_param_spec(v) for k, v in self.parameters_schema.items()}
+            lines.append(f"    params: {json.dumps(rendered, separators=(',', ':'))}")
         if self.examples:
             ex_json = json.dumps(self.examples[0], separators=(",", ":"))
             lines.append(f"    example: {ex_json}")
         return "\n".join(lines)
+
+    def validate_parameters(
+        self, params: dict[str, Any]
+    ) -> list[ActionValidationError]:
+        """
+        Validate intent parameters against this schema.
+
+        Only validates parameters whose spec can be parsed to a known type.
+        Unknown or descriptive specs (e.g. "north|south|east|west") are skipped
+        for backward compatibility.
+
+        int values are accepted where float is expected (silent coercion).
+        """
+        errors: list[ActionValidationError] = []
+        for param_name, spec in self.parameters_schema.items():
+            expected_type, required = _parse_param_spec(spec)
+            value = params.get(param_name)
+
+            if value is None:
+                if required and expected_type is not None:
+                    errors.append(ActionValidationError(
+                        code    = "missing_param",
+                        message = f"required parameter '{param_name}' is missing",
+                        field   = param_name,
+                    ))
+                continue
+
+            if expected_type is None:
+                continue  # spec not parseable — skip type check
+
+            # Allow silent int→float coercion (LLMs often omit the decimal point)
+            if expected_type is float and isinstance(value, int):
+                continue
+
+            if not isinstance(value, expected_type):
+                errors.append(ActionValidationError(
+                    code    = "type_mismatch",
+                    message = (
+                        f"parameter '{param_name}' must be {expected_type.__name__}, "
+                        f"got {type(value).__name__}"
+                    ),
+                    field   = param_name,
+                ))
+        return errors

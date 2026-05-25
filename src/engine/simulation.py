@@ -11,10 +11,13 @@ Construct via Simulation.from_config(path) or directly.
 from __future__ import annotations
 
 import asyncio
+import logging
 import random
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+_logger = logging.getLogger(__name__)
 
 from src.contracts.action import Intent, ActionResult
 from src.contracts.world import World
@@ -23,6 +26,7 @@ from src.engine.agent_runtime import AgentRuntime
 from src.engine.event_bus import (
     EventBus, Event, TICK_START, TICK_END, AGENT_STEP_ERROR,
 )
+from src.engine.obs_registry import ObservationRegistry
 from src.engine.registry import ActionRegistry
 from src.engine.scheduler import Scheduler, SimultaneousScheduler
 
@@ -98,36 +102,72 @@ class Simulation:
 
     def __init__(
         self,
-        agents:    list[Agent],
-        world:     World,
-        registry:  ActionRegistry,
-        bus:       EventBus         | None = None,
-        scheduler: Scheduler        | None = None,
-        config:    SimulationConfig  | None = None,
-        social:    Any              | None = None,
+        agents:       list[Agent],
+        world:        World,
+        registry:     ActionRegistry,
+        bus:          EventBus              | None = None,
+        scheduler:    Scheduler             | None = None,
+        config:       SimulationConfig       | None = None,
+        social:       Any                   | None = None,
+        obs_registry: ObservationRegistry   | None = None,
     ):
-        self.agents    = agents
-        self.world     = world
-        self.registry  = registry
-        self.bus       = bus       or EventBus()
-        self.scheduler = scheduler or SimultaneousScheduler()
-        self.config    = config    or SimulationConfig()
-        self.social    = social    # SocialSystem | None — held for snapshot support
+        self.agents       = agents
+        self.world        = world
+        self.registry     = registry
+        self.bus          = bus          or EventBus()
+        self.scheduler    = scheduler    or SimultaneousScheduler()
+        self.config       = config       or SimulationConfig()
+        self.social       = social       # SocialSystem | None — held for snapshot support
+        self.obs_registry = obs_registry # ObservationRegistry | None
 
         # Canonical seeded RNG — injected into the world so handlers use context.rng
         self.rng = random.Random(self.config.seed)
         self.world.rng = self.rng
 
         self._runtime  = AgentRuntime(
-            registry = self.registry,
-            world    = self.world,
-            bus      = self.bus,
+            registry     = self.registry,
+            world        = self.world,
+            bus          = self.bus,
+            obs_registry = self.obs_registry,
         )
 
         if hasattr(self.world, "register_agents"):
             self.world.register_agents(self.agents)
 
     # ── Public API ────────────────────────────────────────────────────────────
+
+    def close(self) -> None:
+        """
+        Release resources held by agents' brains.
+
+        Calls brain.close() on every agent whose brain implements the
+        Closeable protocol (src.contracts.brain.Closeable).  Errors from
+        individual close() calls are logged and skipped so all brains are
+        always attempted.
+
+        Use as a context manager for automatic teardown:
+
+            with Simulation(...) as sim:
+                await sim.run()
+        """
+        from src.contracts.brain import Closeable
+        for agent in self.agents:
+            if isinstance(agent.brain, Closeable):
+                try:
+                    agent.brain.close()
+                except Exception as exc:
+                    _logger.warning(
+                        "Brain.close() raised for agent %r: %s",
+                        agent.id,
+                        exc,
+                        exc_info=True,
+                    )
+
+    def __enter__(self) -> "Simulation":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.close()
 
     async def run(self) -> None:
         """Run all configured ticks to completion."""

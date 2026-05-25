@@ -1,5 +1,5 @@
 """
-src/plugins/builtin/basic_social/social.py
+src/plugins/builtin/simple_social/social.py
 ────────────────────────────────────────────────────
 WeightedGraphSocial: directed graph of float relationships.
 Implements the SocialSystem contract.

@@ -27,16 +27,16 @@ def build_medieval_registry() -> ActionRegistry:
     registry.register(ActionSchema("explore",     "Explore your surroundings for hidden resources.",
                                    kind=ActionKind.ENGINE), ExploreHandler())
     registry.register(ActionSchema("speak",       "Speak to a nearby agent.",
-                                   {"message": "string"},
+                                   {"message": str},
                                    kind=ActionKind.ENGINE), SpeakHandler())
     registry.register(ActionSchema("trade",       "Trade items with a nearby agent.",
                                    {"offer": {"item": "qty"}, "request": {"item": "qty"}},
                                    kind=ActionKind.ENGINE), TradeHandler())
     registry.register(ActionSchema("give",        "Give items to a nearby agent.",
-                                   {"item": "string", "qty": "int"},
+                                   {"item": str, "qty": int},
                                    kind=ActionKind.ENGINE), GiveHandler())
     registry.register(ActionSchema("attack",      "Attack a nearby agent.",
-                                   {"weapon": "string"},
+                                   {"weapon": str},
                                    kind=ActionKind.ENGINE), AttackHandler())
     registry.register(ActionSchema("idle",        "Do nothing this tick.",
                                    kind=ActionKind.ENGINE), IdleHandler())

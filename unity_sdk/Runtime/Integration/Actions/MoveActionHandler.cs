@@ -23,6 +23,14 @@ namespace Biomata.Integration.Actions
         [SerializeField] private float rotateSpeed      = 360f;
         [SerializeField] private float arrivalThreshold = 0.15f;
 
+        /// <summary>Configure movement parameters at runtime (call immediately after AddComponent).</summary>
+        public void Configure(float moveSpeed, float arrivalThreshold = 0.15f, float rotateSpeed = 360f)
+        {
+            this.moveSpeed        = moveSpeed;
+            this.arrivalThreshold = arrivalThreshold;
+            this.rotateSpeed      = rotateSpeed;
+        }
+
         private static readonly HashSet<string> HandledActions = new HashSet<string>
         {
             "move", "walk", "navigate", "go", "travel", "follow", "flee",

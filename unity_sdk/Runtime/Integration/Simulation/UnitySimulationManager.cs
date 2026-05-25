@@ -53,6 +53,24 @@ namespace Biomata.Integration
         [Tooltip("Optional scene name injected into every tick's world metadata.")]
         [SerializeField] private string worldName = "";
 
+        /// <summary>
+        /// Configure connection parameters at runtime (call immediately after AddComponent, before Start).
+        ///
+        /// Use this instead of reflection when building the manager procedurally. Values
+        /// set here are read by Start() on the next frame, before any auto-connect attempt.
+        /// </summary>
+        public void Configure(
+            string host,
+            int    port,
+            float  tickRate    = 2f,
+            bool   autoConnect = true)
+        {
+            this.host        = host;
+            this.port        = port;
+            this.tickRate    = tickRate;
+            this.autoConnect = autoConnect;
+        }
+
         // ── Events ────────────────────────────────────────────────────────────────
 
         /// <summary>Fired on the main thread after every successful tick RPC.</summary>

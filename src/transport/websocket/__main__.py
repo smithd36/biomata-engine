@@ -22,8 +22,8 @@ from src.transport.websocket.server import WebSocketServer
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="biomata-engine WebSocket server")
     p.add_argument("--config",   required=True, help="Path to sim.yaml")
-    p.add_argument("--host",     default="0.0.0.0",
-                   help="Bind host (default: 0.0.0.0 = all interfaces)")
+    p.add_argument("--host",     default="127.0.0.1",
+                   help="Bind host (default: 127.0.0.1 = loopback only; use 0.0.0.0 for all interfaces)")
     p.add_argument("--port",     type=int, default=8765,
                    help="Port (default: 8765)")
     p.add_argument(

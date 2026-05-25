@@ -6,12 +6,18 @@ Load a Simulation from a YAML config file.
 Plugin classes are imported dynamically via importlib — users reference
 their own code (mygame.world.CityWorld) or builtins in the YAML config.
 
+All construction uses the validated SimConfig model (Pydantic) — no raw
+dict access after validation. ComponentConfig.kwargs() forwards extra
+YAML fields to constructors so adding new config keys requires no loader
+changes.
+
 Example sim.yaml:
 ─────────────────
 engine:
   ticks: 100
   seed: 42
   scheduler: sequential
+  scheduler_order: [agent_001, agent_002]   # optional; sequential only
 
 world:
   class: mygame.world.CityWorld
@@ -22,15 +28,18 @@ llm:
   model: qwen2.5:14b
   base_url: http://localhost:11434
 
-registry:
-  class: mygame.registry.build_registry
-
 social:
   class: src.plugins.builtin.simple_social.social.WeightedGraphSocial
+
+registry:
+  class: mygame.registry.build_registry
 
 agents:
   - id: agent_001
     name: Alice
+    inventory:
+      gold: 10
+      torch: 2
     brain:
       class: src.plugins.builtin.ollama.brain.OllamaLLMBrain
       personality:
@@ -43,10 +52,26 @@ agents:
     state_ext:
       class: mygame.vitals.CityVitals
 ─────────────────
+
+Factory function convention
+───────────────────────────
+Registry and observation-registry entries reference factory callables rather
+than classes. The loader uses inspect.signature to pass only the kwargs the
+factory declares, so zero-arg factories are unaffected. Supported injected
+kwargs:
+
+  social   — the configured SocialSystem instance (or None)
+
+Extra YAML keys on registry/observations blocks are also forwarded when the
+factory signature declares matching parameter names.
+
+Example:
+  def build_my_obs_registry(social=None, sensor_radius=8.0): ...
 """
 from __future__ import annotations
 
 import importlib
+import inspect
 from pathlib import Path
 from typing import Any
 
@@ -55,12 +80,6 @@ try:
     _YAML_AVAILABLE = True
 except ImportError:
     _YAML_AVAILABLE = False
-
-try:
-    from pydantic import ValidationError
-    _PYDANTIC_AVAILABLE = True
-except ImportError:
-    _PYDANTIC_AVAILABLE = False
 
 
 def _import(dotted_path: str) -> Any:
@@ -84,6 +103,24 @@ def _import(dotted_path: str) -> Any:
     return getattr(module, attr)
 
 
+def _call_factory(fn: Any, **kwargs: Any) -> Any:
+    """
+    Call fn with only the kwargs declared in its signature.
+
+    Allows factory functions to opt into receiving engine-managed objects
+    (e.g. `social`) by declaring a matching parameter name, while zero-arg
+    factories continue to work unchanged. Extra YAML kwargs are forwarded
+    on the same basis.
+    """
+    try:
+        sig    = inspect.signature(fn)
+        params = sig.parameters
+    except (ValueError, TypeError):
+        return fn()
+    accepted = {k: v for k, v in kwargs.items() if k in params}
+    return fn(**accepted)
+
+
 def load_simulation(path: str) -> "Simulation":             # noqa: F821
     if not _YAML_AVAILABLE:
         raise ImportError("PyYAML is required: pip install pyyaml")
@@ -102,102 +139,103 @@ def _build_simulation(cfg: dict, base_dir: str = ".") -> "Simulation":  # noqa: 
     from src.engine.agent import Agent
     from src.plugins.builtin.simple_memory.memory import SimpleMemory
 
-    # ── Validate config with Pydantic ──────────────────────────────────────
-    if _PYDANTIC_AVAILABLE:
-        try:
-            sim_cfg_model = SimConfig.model_validate(cfg)
-        except Exception as exc:
-            raise ValueError(f"Invalid sim.yaml: {exc}") from exc
-    else:
-        # Fallback: use raw dict (pydantic not installed)
-        sim_cfg_model = None
+    # ── Validate ───────────────────────────────────────────────────────────
+    try:
+        from pydantic import ValidationError
+    except ImportError as exc:
+        raise ImportError("pydantic is required: pip install pydantic") from exc
 
-    eng_cfg  = (sim_cfg_model.engine if sim_cfg_model else None)
-    sim_cfg  = SimulationConfig(
-        ticks     = eng_cfg.ticks     if eng_cfg else cfg.get("engine", {}).get("ticks", 20),
-        seed      = eng_cfg.seed      if eng_cfg else cfg.get("engine", {}).get("seed", 42),
-        log_level = eng_cfg.log_level if eng_cfg else cfg.get("engine", {}).get("log_level", "normal"),
+    try:
+        sim = SimConfig.model_validate(cfg)
+    except Exception as exc:
+        raise ValueError(f"Invalid sim.yaml: {exc}") from exc
+
+    # ── Engine config ──────────────────────────────────────────────────────
+    eng     = sim.engine
+    sim_cfg = SimulationConfig(
+        ticks     = eng.ticks,
+        seed      = eng.seed,
+        log_level = eng.log_level,
     )
 
-    # ── World ─────────────────────────────────────────────────────────────
-    world_raw   = dict(cfg.get("world", {}))
-    world_class = _import(world_raw.pop("class"))
-    world       = world_class(**world_raw)
+    # ── World ──────────────────────────────────────────────────────────────
+    world_class = _import(sim.world.class_)
+    world       = world_class(**sim.world.kwargs())
 
-    # ── Registry ──────────────────────────────────────────────────────────
-    reg_raw = cfg.get("registry") or {}
-    if "class" in reg_raw:
-        build_fn = _import(reg_raw["class"])
-        registry = build_fn()
+    # ── Social (built before registry so factories can receive it) ─────────
+    social = None
+    if sim.social is not None:
+        soc_class = _import(sim.social.class_)
+        social    = soc_class(**sim.social.kwargs())
+
+    # ── Registry ───────────────────────────────────────────────────────────
+    if sim.registry is not None:
+        build_fn = _import(sim.registry.class_)
+        registry = _call_factory(build_fn, social=social, **sim.registry.kwargs())
     else:
         registry = ActionRegistry()
 
-    # ── Social ────────────────────────────────────────────────────────────
-    social = None
-    if "social" in cfg and cfg["social"]:
-        soc_raw   = dict(cfg["social"])
-        soc_class = _import(soc_raw.pop("class"))
-        social    = soc_class(**soc_raw)
+    # ── Observation registry (optional) ────────────────────────────────────
+    if sim.observations is not None:
+        obs_fn       = _import(sim.observations.class_)
+        obs_registry = _call_factory(obs_fn, social=social, **sim.observations.kwargs())
+    else:
+        obs_registry = None
 
-    # ── Event bus ─────────────────────────────────────────────────────────
+    # ── Event bus ──────────────────────────────────────────────────────────
     bus = EventBus()
     if social is not None:
         bus.subscribe("action_completed", SocialEffectSubscriber(social))
 
-    # ── Scheduler ─────────────────────────────────────────────────────────
-    sched_name = cfg.get("engine", {}).get("scheduler", "simultaneous")
-    scheduler  = SequentialScheduler() if sched_name == "sequential" else SimultaneousScheduler()
+    # ── Scheduler ──────────────────────────────────────────────────────────
+    if eng.scheduler == "sequential":
+        scheduler = SequentialScheduler(order=eng.scheduler_order or None)
+    else:
+        scheduler = SimultaneousScheduler()
 
-    # ── Agents ────────────────────────────────────────────────────────────
-    agents  = []
-    llm_cfg = cfg.get("llm", {})
+    # ── Agents ─────────────────────────────────────────────────────────────
+    agents = []
+    for a_cfg in sim.agents:
+        brain_class = _import(a_cfg.brain.class_)
+        brain       = brain_class(llm_config=sim.llm, **a_cfg.brain.kwargs())
 
-    for a_cfg in cfg.get("agents", []):
-        # Brain
-        brain_raw   = dict(a_cfg.get("brain", {}))
-        brain_class = _import(brain_raw.pop("class"))
-        brain       = brain_class(llm_config=llm_cfg, **brain_raw)
-
-        # Memory (optional — defaults to SimpleMemory)
-        if "memory" in a_cfg and a_cfg["memory"]:
-            mem_raw   = dict(a_cfg["memory"])
-            mem_class = _import(mem_raw.pop("class"))
-            memory    = mem_class(**mem_raw)
+        if a_cfg.memory is not None:
+            mem_class = _import(a_cfg.memory.class_)
+            memory    = mem_class(**a_cfg.memory.kwargs())
         else:
             memory = SimpleMemory()
 
-        # State extension (optional)
         state_ext = None
-        if "state_ext" in a_cfg and a_cfg["state_ext"]:
-            ext_raw   = dict(a_cfg["state_ext"])
-            ext_class = _import(ext_raw.pop("class"))
-            state_ext = ext_class(**ext_raw)
+        if a_cfg.state_ext is not None:
+            ext_class = _import(a_cfg.state_ext.class_)
+            state_ext = ext_class(**a_cfg.state_ext.kwargs())
 
         agent = Agent(
-            id           = a_cfg["id"],
-            name         = a_cfg["name"],
+            id           = a_cfg.id,
+            name         = a_cfg.name,
             brain        = brain,
             memory       = memory,
+            inventory    = dict(a_cfg.inventory),
             state_ext    = state_ext,
-            capabilities = frozenset(a_cfg.get("capabilities") or []),
+            capabilities = frozenset(a_cfg.capabilities),
         )
         agents.append(agent)
 
         if social is not None:
             social.add_agent(agent.id, agent.name)
 
-        placement = a_cfg.get("position") or {}
-        if placement:
+        if a_cfg.position:
             from src.contracts.world import PlaceableWorld
             if isinstance(world, PlaceableWorld):
-                world.place_agent(agent.id, **placement)
+                world.place_agent(agent.id, **a_cfg.position)
 
     return Simulation(
-        agents    = agents,
-        world     = world,
-        registry  = registry,
-        bus       = bus,
-        scheduler = scheduler,
-        config    = sim_cfg,
-        social    = social,
+        agents       = agents,
+        world        = world,
+        registry     = registry,
+        bus          = bus,
+        scheduler    = scheduler,
+        config       = sim_cfg,
+        social       = social,
+        obs_registry = obs_registry,
     )

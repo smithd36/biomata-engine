@@ -22,42 +22,42 @@ def build_corporate_registry() -> ActionRegistry:
     r = ActionRegistry()
     r.register(ActionSchema("email",
         "Send a professional email to a colleague (no adjacency needed).",
-        {"message": "string", "tone": "professional|friendly|urgent"},
+        {"message": str, "tone": "professional|friendly|urgent"},
         kind=ActionKind.ENGINE),
         EmailHandler())
     r.register(ActionSchema("schedule_meeting",
         "Hold a meeting with an adjacent colleague.",
-        {"topic": "string"},
+        {"topic": str},
         kind=ActionKind.ENGINE),
         ScheduleMeetingHandler())
     r.register(ActionSchema("request_budget",
         "Ask your manager for budget allocation.",
-        {"amount": "int ($k)", "purpose": "string"},
+        {"amount": int, "purpose": str},
         kind=ActionKind.ENGINE),
         RequestBudgetHandler())
     r.register(ActionSchema("gossip",
         "Spread rumours about a nearby colleague — damages their reputation.",
-        {"message": "string"},
+        {"message": str},
         kind=ActionKind.ENGINE),
         GossipHandler())
     r.register(ActionSchema("form_alliance",
         "Propose a formal political alliance with a colleague.",
-        {"terms": "string"},
+        {"terms": str},
         kind=ActionKind.ENGINE),
         FormAllianceHandler())
     r.register(ActionSchema("sabotage",
         "Undermine a colleague's standing. High relationship cost.",
-        {"method": "string"},
+        {"method": str},
         kind=ActionKind.ENGINE),
         SabotageHandler())
     r.register(ActionSchema("delegate",
         "Delegate a task to a direct report (manager/executive only).",
-        {"task": "string"},
+        {"task": str},
         kind=ActionKind.ENGINE),
         DelegateHandler())
     r.register(ActionSchema("pitch_idea",
         "Pitch a project idea to a manager or executive.",
-        {"idea": "string"},
+        {"idea": str},
         kind=ActionKind.ENGINE),
         PitchIdeaHandler())
     r.register(ActionSchema("idle",

@@ -19,6 +19,7 @@ from src.engine.event_bus import (
     ACTION_COMPLETED, ACTION_FAILED, AGENT_STEP_ERROR,
 )
 from src.engine.registry import ActionRegistry
+from src.engine.obs_registry import ObservationRegistry
 
 
 # Module-level constants to avoid per-call literal allocation on hot path.
@@ -39,13 +40,15 @@ class AgentRuntime:
 
     def __init__(
         self,
-        registry: ActionRegistry,
-        world:    World,
-        bus:      EventBus,
+        registry:     ActionRegistry,
+        world:        World,
+        bus:          EventBus,
+        obs_registry: ObservationRegistry | None = None,
     ):
-        self.registry = registry
-        self.world    = world
-        self.bus      = bus
+        self.registry     = registry
+        self.world        = world
+        self.bus          = bus
+        self.obs_registry = obs_registry
         # Cache the VisibilityWorld capability check — isinstance is fast but
         # we call it N×ticks times. Cache once on construction.
         self._world_has_visibility = isinstance(world, VisibilityWorld)
@@ -92,11 +95,17 @@ class AgentRuntime:
             inventory = inventory_view,
             ext       = state_snap,
         )
+        obs_schemas = (
+            self.obs_registry.schemas_for(agent.capabilities)
+            if self.obs_registry is not None
+            else []
+        )
         context = BrainContext(
-            tick     = tick,
-            memory   = agent.memory.recall(),
-            metadata = self.world.metadata,
-            emit     = self.bus.emit,
+            tick                = tick,
+            memory              = agent.memory.recall(),
+            metadata            = self.world.metadata,
+            observation_schemas = obs_schemas,
+            emit                = self.bus.emit,
         )
         intent = await agent.brain.decide(
             agent       = view,
@@ -105,8 +114,16 @@ class AgentRuntime:
             context     = context,
         )
 
-        # 5. Dispatch
-        result = self.registry.dispatch(intent, view, self.world)
+        # 5. Validate then dispatch
+        validation_errors = self.registry.validate_intent(intent, agent.capabilities)
+        if validation_errors:
+            error_text = "; ".join(e.message for e in validation_errors)
+            result = ActionResult(
+                success      = False,
+                outcome_text = f"action '{intent.action}' rejected: {error_text}",
+            )
+        else:
+            result = self.registry.dispatch(intent, view, self.world)
 
         # 6a. Apply state_ext mutations
         state_mutations = result.state_mutations
@@ -165,20 +182,31 @@ class AgentRuntime:
         inventory_view: dict[str, Any],
     ) -> dict[str, Any]:
         """
-        Pure world perception merged with engine-injected identity fields.
+        Assembles the agent's observation for this tick.
 
-        nearby_agents priority:
-          1. If world.observe() already includes 'nearby_agents' (e.g. HostedWorld
-             receiving host-provided visibility data), that list is used as-is.
-          2. Otherwise, query VisibilityWorld.get_nearby_agents() if available.
-          3. Default: empty list.
+        Layer order (later layers win on key conflict):
+          1. ObservationRegistry providers  — domain / capability-filtered additions
+          2. world.observe()               — authoritative host / world data
+          3. VisibilityWorld.nearby_agents — if world doesn't supply it
+          4. Engine-injected identity      — agent_id, inventory, state_ext, etc.
 
         Mutates the world_obs dict in place — worlds are expected to return
         freshly-allocated dicts (HostedWorld already copies; local worlds compute
         per-call). This avoids the {**spread, ...} double-copy that was on the
         hot path for every agent every tick.
         """
+        # 1. Collect registry provider slices (lowest priority — fills gaps)
+        if self.obs_registry is not None:
+            registry_obs = self.obs_registry.collect(agent.id, agent.capabilities, self.world)
+        else:
+            registry_obs = _EMPTY_DICT
+
         world_obs = self.world.observe(agent.id)
+
+        # Merge registry into world_obs: only set keys world didn't provide
+        for k, v in registry_obs.items():
+            if k not in world_obs:
+                world_obs[k] = v
 
         if "nearby_agents" not in world_obs:
             if self._world_has_visibility:

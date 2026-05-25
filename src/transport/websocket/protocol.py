@@ -127,6 +127,7 @@ class ErrorCode:
     AGENT_EXISTS     = -2       # agent_id already registered in this session
     AGENT_NOT_FOUND  = -3       # agent_id not present in this session
     IMPORT_ERROR     = -4       # Python dotted-path import failed
+    SNAPSHOT_INVALID = -5       # Snapshot HMAC verification failed or data is malformed
 
     _NAMES: dict[int, str] = {
         -32700: "PARSE_ERROR",
@@ -139,6 +140,7 @@ class ErrorCode:
         -2:     "AGENT_EXISTS",
         -3:     "AGENT_NOT_FOUND",
         -4:     "IMPORT_ERROR",
+        -5:     "SNAPSHOT_INVALID",
     }
 
     @classmethod

@@ -34,6 +34,21 @@ namespace Biomata.Integration
         [Tooltip("Draw lines between agents linked by interact engine_commands.")]
         [SerializeField] private bool showInteractionLines = true;
 
+        /// <summary>Configure visualizer parameters at runtime (call immediately after AddComponent).</summary>
+        public void Configure(
+            bool    showOverlay        = true,
+            bool    showSpeechBubbles  = true,
+            bool    showInteractionLines = true,
+            int     maxEventLines      = 12,
+            KeyCode toggleKey          = KeyCode.F2)
+        {
+            this.showOverlay         = showOverlay;
+            this.showSpeechBubbles   = showSpeechBubbles;
+            this.showInteractionLines = showInteractionLines;
+            this.maxEventLines       = maxEventLines;
+            this.toggleKey           = toggleKey;
+        }
+
         // ── Private ───────────────────────────────────────────────────────────────
 
         private UnitySimulationManager _manager;

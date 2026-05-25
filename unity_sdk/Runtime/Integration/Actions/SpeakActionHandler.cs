@@ -22,6 +22,13 @@ namespace Biomata.Integration.Actions
         [SerializeField] private float speechDuration  = 4f;
         [SerializeField] private bool  logToConsole    = false;
 
+        /// <summary>Configure speech handler parameters at runtime (call immediately after AddComponent).</summary>
+        public void Configure(bool logToConsole = false, float speechDuration = 4f)
+        {
+            this.logToConsole   = logToConsole;
+            this.speechDuration = speechDuration;
+        }
+
         private static readonly HashSet<string> HandledActions = new HashSet<string>
         {
             "speak", "say", "talk", "announce", "greet", "shout", "whisper", "declare",

@@ -21,6 +21,7 @@ bus.emit(Event(type="action_completed", tick=1, agent_id="agent_001", data={...}
 """
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -39,16 +40,12 @@ class Event:
 # ── Standard event type constants ─────────────────────────────────────────────
 # Use these rather than raw strings so typos are caught at import time.
 
-TICK_START        = "tick_start"
-TICK_END          = "tick_end"
-ACTION_DISPATCHED = "action_dispatched"
-ACTION_COMPLETED  = "action_completed"
-ACTION_FAILED     = "action_failed"
-BRAIN_DECIDED     = "brain_decided"       # emitted by brains that record prompt/raw output
-AGENT_STEP_ERROR  = "agent_step_error"
-SOCIAL_UPDATED    = "social_updated"
-AGENT_DIED        = "agent_died"
-CHECKPOINT_SAVED  = "checkpoint_saved"
+TICK_START       = "tick_start"
+TICK_END         = "tick_end"
+ACTION_COMPLETED = "action_completed"
+ACTION_FAILED    = "action_failed"
+BRAIN_DECIDED    = "brain_decided"       # emitted by brains that record prompt/raw output
+AGENT_STEP_ERROR = "agent_step_error"
 
 
 # ── EventBus ──────────────────────────────────────────────────────────────────
@@ -107,8 +104,11 @@ class SocialEffectSubscriber:
 
 class EventLogSubscriber:
     """Appends a plain-text log entry for every action completed."""
+
+    MAX_ENTRIES = 1000
+
     def __init__(self):
-        self.log: list[str] = []
+        self.log: deque[str] = deque(maxlen=self.MAX_ENTRIES)
 
     def __call__(self, event: Event) -> None:
         if event.type == ACTION_COMPLETED:
@@ -119,7 +119,7 @@ class EventLogSubscriber:
             )
 
     def tail(self, n: int = 20) -> list[str]:
-        return self.log[-n:]
+        return list(self.log)[-n:]
 
 
 class ObservabilitySubscriber:

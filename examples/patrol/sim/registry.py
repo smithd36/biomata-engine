@@ -12,7 +12,7 @@ def build_patrol_registry() -> ActionRegistry:
         ActionSchema(
             "navigate",
             "Move to a world-space XZ position.",
-            {"target_x": "float", "target_z": "float", "target_y": "float (optional, default 0)"},
+            {"target_x": float, "target_z": float, "target_y": "float?"},
             kind=ActionKind.HOST,
         ),
         NavigateHandler(),
