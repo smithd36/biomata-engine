@@ -5,24 +5,55 @@ using UnityEngine;
 namespace Biomata.Integration.Actions
 {
     /// <summary>
-    /// Base class for action handlers. Add multiple concrete handlers to the same
-    /// GameObject as <see cref="ActionExecutor"/>. The executor calls the first handler
-    /// whose <see cref="CanHandle"/> returns <c>true</c>.
+    /// Base class for action handlers.
     ///
-    /// Subclass to add custom action types (NavMesh movement, animation state machines,
-    /// audio cues, particle effects, etc.) without modifying the SDK.
+    /// Attach any number of concrete handlers to the same GameObject as
+    /// <see cref="ActionExecutor"/>. On each tick the executor finds the first handler
+    /// (in component order) whose <see cref="CanHandle"/> returns <c>true</c> and
+    /// runs its <see cref="ExecuteCoroutine"/>.
+    ///
+    /// ── Implementing a custom handler ────────────────────────────────────────
+    ///
+    /// 1. Subclass and add <c>[AddComponentMenu("Biomata/Actions/YourName")]</c>.
+    ///
+    /// 2. Declare a <c>static readonly HashSet&lt;string&gt;</c> of the lowercase
+    ///    action names your handler covers.  Override <see cref="CanHandle"/> to
+    ///    return <c>true</c> when <paramref name="action"/> is in that set.
+    ///
+    /// 3. Override <see cref="ExecuteCoroutine"/>. Use <c>yield return null</c> to
+    ///    advance one frame, <c>yield return new WaitForSeconds(t)</c> to delay,
+    ///    or <c>yield return StartCoroutine(other)</c> to chain sub-coroutines.
+    ///    The coroutine runs until it completes — the next action will not start
+    ///    until the previous <see cref="ExecuteCoroutine"/> has finished.
+    ///
+    /// 4. Read parameters from <c>decision.Parameters</c> and engine commands
+    ///    from <c>decision.EngineCommands</c> — both are
+    ///    <c>Dictionary&lt;string, object&gt;</c> with JSON-decoded values.
+    ///
+    /// 5. Fire Unity events (audio, animation triggers, UI) from inside
+    ///    <see cref="ExecuteCoroutine"/>; no further coordination is needed.
+    ///
+    /// ── Handler ordering ─────────────────────────────────────────────────────
+    ///
+    /// Handlers are evaluated in component order.  A handler earlier in the list
+    /// shadows later ones for the same action strings.  Reorder components in the
+    /// Inspector to change priority, or write non-overlapping <see cref="CanHandle"/>
+    /// sets.
+    ///
+    /// See <see cref="MoveActionHandler"/>, <see cref="SpeakActionHandler"/>, and
+    /// <see cref="InteractActionHandler"/> for reference implementations.
     /// </summary>
     public abstract class ActionHandlerBase : MonoBehaviour
     {
         /// <summary>
-        /// Return <c>true</c> if this handler is capable of executing
-        /// <paramref name="action"/>. Case-sensitivity is up to the subclass.
+        /// Return <c>true</c> if this handler can execute <paramref name="action"/>.
+        /// Called by <see cref="ActionExecutor"/> in component order each tick.
         /// </summary>
         public abstract bool CanHandle(string action);
 
         /// <summary>
-        /// Execute the action. Yield until the action animation/effect is complete.
-        /// The coroutine is driven by <see cref="ActionExecutor"/>.
+        /// Execute the action and yield until it is complete.
+        /// Driven by <see cref="ActionExecutor"/> as a Unity coroutine.
         /// </summary>
         public abstract IEnumerator ExecuteCoroutine(AgentDecisionResult decision, UnityAgentBridge bridge);
     }

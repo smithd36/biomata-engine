@@ -201,17 +201,13 @@ namespace Biomata.Samples
 
         // ── Runtime state ─────────────────────────────────────────────────────
 
-        private UnitySimulationManager  _simMgr;
-        private VillageAgentRecord[]    _agents;
-        private int                     _selectedIdx;
-        private VillagePrefabs          _pf;
+        private BiomataSimulationBootstrapper _bootstrapper;
+        private VillageAgentRecord[]          _agents;
+        private int                           _selectedIdx;
+        private VillagePrefabs                _pf;
 
         private readonly Dictionary<string, VillageAgentRecord> _agentById = new();
 
-        private bool  _autoTicking;
-        private bool  _paused;
-        private float _tickAccum;
-        private float _tickStartTime;
         private float _lastTickMs;
         private int   _totalTicks;
         private int   _totalDecisions;
@@ -247,7 +243,7 @@ namespace Biomata.Samples
         private void Start()
         {
             EnsureEventSystem();
-            CreateSimManager();
+            CreateBootstrapper();
             CreateAgentObjects();
             BuildHUD();
         }
@@ -255,15 +251,6 @@ namespace Biomata.Samples
         private void Update()
         {
             UpdateMetricsText();
-
-            if (_paused || !_autoTicking || !(_simMgr?.IsConnected == true)) return;
-
-            _tickAccum += Time.deltaTime;
-            float interval = tickRate > 0f ? 1f / tickRate : 9999f;
-            if (_tickAccum < interval) return;
-
-            _tickAccum = 0f;
-            DispatchTick();
         }
 
         // ── Prefab auto-discovery (editor only) ───────────────────────────────
@@ -878,20 +865,20 @@ namespace Biomata.Samples
             roleT.alignment = TextAnchor.LowerCenter;
         }
 
-        // ── Simulation manager ────────────────────────────────────────────────
+        // ── Simulation bootstrapper ───────────────────────────────────────────
 
-        private void CreateSimManager()
+        private void CreateBootstrapper()
         {
-            var go = new GameObject("SimulationManager");
+            var go = new GameObject("SimulationBootstrapper");
 
-            _simMgr = go.AddComponent<UnitySimulationManager>();
-            _simMgr.Configure(host, port, tickRate: 0.001f, autoConnect: false);
+            _bootstrapper = go.AddComponent<BiomataSimulationBootstrapper>();
+            _bootstrapper.Configure(host, port, tickRate: tickRate, autoConnect: false, autoTick: false);
 
-            _simMgr.OnConnected       += HandleConnected;
-            _simMgr.OnDisconnected    += HandleDisconnected;
-            _simMgr.OnTickComplete    += HandleTickComplete;
-            _simMgr.OnTickError       += ex => LogEvent($"[tick error] {ex?.Message}");
-            _simMgr.OnSimulationEvent += HandleSimEvent;
+            _bootstrapper.OnConnected       += HandleConnected;
+            _bootstrapper.OnDisconnected    += HandleDisconnected;
+            _bootstrapper.OnTickComplete    += HandleTickComplete;
+            _bootstrapper.OnTickError       += ex => LogEvent($"[tick error] {ex?.Message}");
+            _bootstrapper.OnSimulationEvent += HandleSimEvent;
 
             var vizGO = new GameObject("EventVisualizer");
             var viz   = vizGO.AddComponent<EventVisualizer>();
@@ -917,8 +904,6 @@ namespace Biomata.Samples
             _disconnectBtn?.gameObject.SetActive(false);
             _startTickBtn?.gameObject.SetActive(false);
             _stopTickBtn?.gameObject.SetActive(false);
-            _autoTicking = false;
-            _paused      = false;
             foreach (var rec in _agents)
             {
                 rec.IsMoving       = false;
@@ -933,7 +918,7 @@ namespace Biomata.Samples
 
         private void HandleTickComplete(TickResult result)
         {
-            _lastTickMs      = (Time.realtimeSinceStartup - _tickStartTime) * 1000f;
+            _lastTickMs      = _bootstrapper.LastTickDurationMs;
             _totalTicks      = result.Tick;
             _totalDecisions += result.Decisions?.Count ?? 0;
             LogEvent($"[tick {result.Tick}] {result.Decisions?.Count ?? 0} decisions  {_lastTickMs:F0} ms");
@@ -945,14 +930,6 @@ namespace Biomata.Samples
             if (ev.EventType is "tick_start" or "tick_end") return;
             if (ev.EventType == "action_completed") return;
             LogEvent($"[{ev.EventType}] {ev.AgentId}");
-        }
-
-        // ── Tick management ───────────────────────────────────────────────────
-
-        private void DispatchTick()
-        {
-            _tickStartTime = Time.realtimeSinceStartup;
-            _simMgr.ForceTick();
         }
 
         // ── Inspector ─────────────────────────────────────────────────────────
@@ -1083,12 +1060,6 @@ namespace Biomata.Samples
             if (mat != null) mat.color = restore;
         }
 
-        private IEnumerator ReconnectAfterDelay(float delay)
-        {
-            yield return new WaitForSeconds(delay);
-            _simMgr.Connect();
-        }
-
         // ── HUD ───────────────────────────────────────────────────────────────
 
         private void BuildHUD()
@@ -1132,10 +1103,10 @@ namespace Biomata.Samples
 
             _connectBtn = MakeBtn(leftBg, "Connect",
                 new Vector2(10, -46), new Vector2(112, 24),
-                () => { SetStatus($"Connecting to {host}:{port}..."); _simMgr.Connect(); });
+                () => { SetStatus($"Connecting to {host}:{port}..."); _bootstrapper.Connect(); });
             _disconnectBtn = MakeBtn(leftBg, "Disconnect",
                 new Vector2(130, -46), new Vector2(112, 24),
-                () => _simMgr.Disconnect());
+                () => _bootstrapper.Disconnect());
             _disconnectBtn.gameObject.SetActive(false);
 
             MakeLbl(leftBg, new Vector2(0,1), new Vector2(1,1),
@@ -1143,7 +1114,7 @@ namespace Biomata.Samples
 
             _startTickBtn = MakeBtn(leftBg, "Start Auto", new Vector2(10,-94), new Vector2(108,24), () =>
             {
-                _autoTicking = true; _paused = false; _tickAccum = 0f;
+                _bootstrapper.StartAutoTick();
                 _startTickBtn.gameObject.SetActive(false);
                 _stopTickBtn.gameObject.SetActive(true);
                 LogEvent("[system] Auto-tick started");
@@ -1152,7 +1123,7 @@ namespace Biomata.Samples
 
             _stopTickBtn = MakeBtn(leftBg, "Stop Auto", new Vector2(10,-94), new Vector2(108,24), () =>
             {
-                _autoTicking = false;
+                _bootstrapper.StopAutoTick();
                 _startTickBtn.gameObject.SetActive(true);
                 _stopTickBtn.gameObject.SetActive(false);
                 LogEvent("[system] Auto-tick stopped");
@@ -1161,27 +1132,27 @@ namespace Biomata.Samples
 
             MakeBtn(leftBg, "Force Tick", new Vector2(126,-94), new Vector2(116,24), () =>
             {
-                if (_simMgr.IsConnected && !_paused) DispatchTick();
+                if (_bootstrapper.IsConnected && !_bootstrapper.IsPaused) _bootstrapper.ForceTick();
             });
 
             MakeBtn(leftBg, "Pause",  new Vector2(10, -124), new Vector2(72, 24), () =>
             {
-                _paused = true;
+                _bootstrapper.SetPaused(true);
                 LogEvent("[system] Paused");
             });
             MakeBtn(leftBg, "Resume", new Vector2(86, -124), new Vector2(72, 24), () =>
             {
-                _paused = false;
+                _bootstrapper.SetPaused(false);
                 LogEvent("[system] Resumed");
             });
             MakeBtn(leftBg, "Reset",  new Vector2(162,-124), new Vector2(80, 24), () =>
             {
-                _autoTicking = false; _paused = false;
+                _bootstrapper.StopAutoTick();
+                _bootstrapper.SetPaused(false);
                 _totalTicks = 0; _totalDecisions = 0; _totalEvents = 0; _totalSocializations = 0;
                 _eventLog.Clear();
                 LogEvent("[system] Reconnecting...");
-                _simMgr.Disconnect();
-                StartCoroutine(ReconnectAfterDelay(1.2f));
+                _bootstrapper.Reconnect(1.2f);
             });
 
             MakeLbl(leftBg, new Vector2(0,1), new Vector2(1,1),

@@ -44,12 +44,28 @@ namespace Biomata.Integration
         ///
         /// Use this instead of reflection when building agents procedurally. The
         /// values set here take effect when Start() runs on the next frame.
+        ///
+        /// <paramref name="brainClass"/> and <paramref name="memoryClass"/> override the
+        /// serialized inspector fields when non-null. <paramref name="brainConfig"/> and
+        /// <paramref name="memoryConfig"/> are forwarded to the backend registration RPC as
+        /// constructor keyword arguments for the brain and memory respectively.
         /// </summary>
-        public void Configure(string agentId, string agentName = null, bool autoRegister = true)
+        public void Configure(
+            string agentId,
+            string agentName   = null,
+            bool   autoRegister = true,
+            string brainClass  = null,
+            string memoryClass = null,
+            Dictionary<string, object> brainConfig  = null,
+            Dictionary<string, object> memoryConfig = null)
         {
             this.agentId      = agentId;
             this.agentName    = string.IsNullOrEmpty(agentName) ? agentId : agentName;
             this.autoRegister = autoRegister;
+            if (brainClass  != null) this.brainClass  = brainClass;
+            if (memoryClass != null) this.memoryClass = memoryClass;
+            _brainConfig  = brainConfig;
+            _memoryConfig = memoryConfig;
         }
 
         // ── Events ────────────────────────────────────────────────────────────────
@@ -82,6 +98,10 @@ namespace Biomata.Integration
         private ObservationCollector    _collector;
         private ActionExecutor          _executor;
         private UnitySimulationManager  _manager;
+
+        // Set via Configure(); forwarded to AgentRegistration on register.
+        private Dictionary<string, object> _brainConfig;
+        private Dictionary<string, object> _memoryConfig;
 
         // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -150,10 +170,12 @@ namespace Biomata.Integration
 
             var reg = new AgentRegistration
             {
-                AgentId     = agentId,
-                AgentName   = agentName,
-                BrainClass  = brainClass,
-                MemoryClass = string.IsNullOrEmpty(memoryClass) ? null : memoryClass,
+                AgentId      = agentId,
+                AgentName    = agentName,
+                BrainClass   = brainClass,
+                MemoryClass  = string.IsNullOrEmpty(memoryClass) ? null : memoryClass,
+                BrainConfig  = _brainConfig,
+                MemoryConfig = _memoryConfig,
             };
 
             var task = _manager.Client.Agents.RegisterAsync(reg);
