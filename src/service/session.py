@@ -240,6 +240,27 @@ class SimulationSession:
 
     # ── Snapshot API ──────────────────────────────────────────────────────────
 
+    # ── Runtime agent lifecycle ───────────────────────────────────────────────
+
+    def register_agent(self, definition: "AgentDefinition") -> "Agent":  # noqa: F821
+        """
+        Register a new runtime agent.  Delegates to Simulation.register_agent().
+
+        Raises AgentDefinitionError if the id is a duplicate or construction
+        fails; raises ImportError if a dotted path cannot be resolved.
+        """
+        return self._sim.register_agent(definition)
+
+    def unregister_agent(self, agent_id: str) -> "Agent":  # noqa: F821
+        """
+        Unregister an agent by id.  Delegates to Simulation.unregister_agent().
+
+        Raises KeyError if agent_id is not registered.
+        """
+        return self._sim.unregister_agent(agent_id)
+
+    # ── Snapshot API ──────────────────────────────────────────────────────────
+
     def snapshot(self) -> SimulationSnapshot:
         """Delegate to Simulation.snapshot()."""
         return self._sim.snapshot()

@@ -24,7 +24,9 @@ from src.contracts.world import World
 from src.engine.agent import Agent
 from src.engine.agent_runtime import AgentRuntime
 from src.engine.event_bus import (
-    EventBus, Event, TICK_START, TICK_END, AGENT_STEP_ERROR,
+    EventBus, Event,
+    TICK_START, TICK_END, AGENT_STEP_ERROR,
+    AGENT_REGISTERED, AGENT_UNREGISTERED,
 )
 from src.engine.obs_registry import ObservationRegistry
 from src.engine.registry import ActionRegistry
@@ -135,6 +137,104 @@ class Simulation:
             self.world.register_agents(self.agents)
 
     # ── Public API ────────────────────────────────────────────────────────────
+
+    # ── Runtime agent lifecycle ───────────────────────────────────────────────
+
+    def register_agent(self, definition: "AgentDefinition") -> Agent:  # noqa: F821
+        """
+        Create and register a new agent from a validated AgentDefinition.
+
+        Registration is safe to call between ticks at any point after
+        engine startup.  YAML-defined agents are registered once at
+        construction time; this method handles all subsequent runtime
+        additions.
+
+        Raises
+        ------
+        AgentDefinitionError
+            ``definition.id`` already exists in the session, or the brain /
+            memory constructor rejected its kwargs.
+        ImportError / AttributeError
+            ``brain_class`` or ``memory_class`` dotted path does not resolve.
+        """
+        from src.engine.agent_definition import (
+            AgentDefinition, AgentDefinitionError, build_agent_from_definition,
+        )
+
+        if any(a.id == definition.id for a in self.agents):
+            raise AgentDefinitionError(
+                "id", f"agent '{definition.id}' is already registered"
+            )
+
+        agent = build_agent_from_definition(definition)
+
+        self.agents.append(agent)
+
+        # Keep the social graph consistent with the new agent.
+        if self.social is not None and hasattr(self.social, "add_agent"):
+            self.social.add_agent(agent.id, agent.name)
+
+        # Re-bind the full agent list so the world can update any internal
+        # data structures that index by agent id (e.g. HostedWorld).
+        if hasattr(self.world, "register_agents"):
+            self.world.register_agents(self.agents)
+
+        self.bus.emit(Event(
+            type     = AGENT_REGISTERED,
+            tick     = self.world.current_tick,
+            agent_id = agent.id,
+            data     = {
+                "agent_name":   agent.name,
+                "capabilities": list(agent.capabilities),
+                "metadata":     dict(definition.metadata),
+            },
+        ))
+
+        _logger.debug("registered agent '%s' (%s)", agent.id, agent.name)
+        return agent
+
+    def unregister_agent(self, agent_id: str) -> Agent:
+        """
+        Remove an agent from the simulation and release its resources.
+
+        Calls ``brain.close()`` if the brain implements the Closeable
+        protocol, then emits AGENT_UNREGISTERED.  The removed Agent
+        object is returned so callers can inspect its final state.
+
+        Raises
+        ------
+        KeyError
+            ``agent_id`` is not registered in this session.
+        """
+        from src.contracts.brain import Closeable
+
+        agent = next((a for a in self.agents if a.id == agent_id), None)
+        if agent is None:
+            raise KeyError(f"agent '{agent_id}' not found")
+
+        self.agents = [a for a in self.agents if a.id != agent_id]
+
+        if hasattr(self.world, "register_agents"):
+            self.world.register_agents(self.agents)
+
+        if isinstance(agent.brain, Closeable):
+            try:
+                agent.brain.close()
+            except Exception as exc:
+                _logger.warning(
+                    "Brain.close() raised for agent %r during unregister: %s",
+                    agent_id, exc,
+                )
+
+        self.bus.emit(Event(
+            type     = AGENT_UNREGISTERED,
+            tick     = self.world.current_tick,
+            agent_id = agent_id,
+            data     = {"agent_name": agent.name},
+        ))
+
+        _logger.debug("unregistered agent '%s' (%s)", agent_id, agent.name)
+        return agent
 
     def close(self) -> None:
         """

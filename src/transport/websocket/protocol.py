@@ -64,6 +64,9 @@ _CAPABILITIES_HOST_DRIVEN: Final[list[str]] = [
     "snapshot",
     "restore",
     "events",
+    "agent.register",
+    "agent.unregister",
+    "agent.list",
 ]
 _CAPABILITIES_AUTONOMOUS: Final[list[str]] = [
     "pause",
@@ -74,6 +77,9 @@ _CAPABILITIES_AUTONOMOUS: Final[list[str]] = [
     "snapshot",
     "restore",
     "events",
+    "agent.register",
+    "agent.unregister",
+    "agent.list",
 ]
 
 
@@ -102,10 +108,17 @@ class Method:
     SUBSCRIBE_EVENTS   = "subscribe_events"
     UNSUBSCRIBE_EVENTS = "unsubscribe_events"
 
+    # v2 dot-notation aliases — nested brain/memory payload, id/name keys.
+    # Backwards-compatible: old flat-param names remain fully functional.
+    AGENT_REGISTER   = "agent.register"
+    AGENT_UNREGISTER = "agent.unregister"
+    AGENT_LIST       = "agent.list"
+
     ALL: tuple[str, ...] = (
         HEALTH_CHECK, REGISTER_AGENT, REMOVE_AGENT, SEND_OBSERVATION,
         TICK, PAUSE, RESUME, SNAPSHOT, RESTORE,
         SUBSCRIBE_EVENTS, UNSUBSCRIBE_EVENTS,
+        AGENT_REGISTER, AGENT_UNREGISTER, AGENT_LIST,
     )
 
 
@@ -128,6 +141,7 @@ class ErrorCode:
     AGENT_NOT_FOUND  = -3       # agent_id not present in this session
     IMPORT_ERROR     = -4       # Python dotted-path import failed
     SNAPSHOT_INVALID = -5       # Snapshot HMAC verification failed or data is malformed
+    VALIDATION_ERROR = -6       # AgentDefinition failed structural validation
 
     _NAMES: dict[int, str] = {
         -32700: "PARSE_ERROR",
@@ -141,6 +155,7 @@ class ErrorCode:
         -3:     "AGENT_NOT_FOUND",
         -4:     "IMPORT_ERROR",
         -5:     "SNAPSHOT_INVALID",
+        -6:     "VALIDATION_ERROR",
     }
 
     @classmethod

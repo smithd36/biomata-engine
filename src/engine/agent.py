@@ -25,6 +25,7 @@ class Agent:
     inventory:    dict[str, Any]              = field(default_factory=dict)
     state_ext:    AgentStateExtension | None  = None
     capabilities: frozenset[str]              = field(default_factory=frozenset)
+    metadata:     dict[str, Any]              = field(default_factory=dict)
 
     def view(self) -> "AgentView":                          # noqa: F821
         from src.contracts.world import AgentView

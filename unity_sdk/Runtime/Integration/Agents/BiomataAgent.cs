@@ -9,22 +9,24 @@ using UnityEngine;
 namespace Biomata.Integration
 {
     /// <summary>
-    /// Designer-first agent component. Drop on any prefab to create a fully wired
-    /// autonomous NPC — configure agent identity, brain, and capabilities in the
-    /// Inspector, then press Play.
+    /// Designer-first agent component. Drop on any prefab to create a fully wired NPC —
+    /// configure identity, ownership mode, brain, and capabilities in the Inspector, then play.
     ///
-    /// Auto-wires the required infrastructure (<see cref="ObservationCollector"/>,
-    /// <see cref="ActionExecutor"/>, <see cref="UnityAgentBridge"/>) and adds
-    /// a default set of action handlers (<see cref="MoveActionHandler"/>,
-    /// <see cref="SpeakActionHandler"/>, <see cref="InteractActionHandler"/>) and
-    /// <see cref="TransformObservationProvider"/> when the component is first attached.
+    /// Two ownership modes:
+    /// <list type="bullet">
+    ///   <item><see cref="AgentOwnershipMode.BindToExisting"/> — agent already exists on the backend
+    ///   (e.g. declared in sim.yaml). Unity binds the visual shell; no registration RPC is sent.</item>
+    ///   <item><see cref="AgentOwnershipMode.CreateAtRuntime"/> — agent is owned by this Unity client.
+    ///   Registered with the backend on connect and unregistered on destroy. Requires Brain Class.</item>
+    /// </list>
     ///
-    /// Designers may remove or replace any of those defaults after attachment.
-    /// The existing <see cref="ActionHandlerBase"/> architecture is fully preserved —
-    /// custom handlers still work exactly as before.
+    /// Auto-wires <see cref="ObservationCollector"/>, <see cref="ActionExecutor"/>, and
+    /// <see cref="UnityAgentBridge"/> when first attached. A default set of action handlers
+    /// and <see cref="TransformObservationProvider"/> are added for immediate use; remove or
+    /// replace them freely after attachment.
     ///
-    /// Call <see cref="Configure"/> immediately after <c>AddComponent</c> when
-    /// constructing agents procedurally; values are applied in Awake.
+    /// Call <see cref="Configure"/> immediately after <c>AddComponent</c> when constructing
+    /// agents procedurally; values are applied in Awake.
     /// </summary>
     [AddComponentMenu("Biomata/Agent")]
     [RequireComponent(typeof(ObservationCollector))]
@@ -34,35 +36,40 @@ namespace Biomata.Integration
     {
         // ── Inspector ─────────────────────────────────────────────────────────────
 
+        [Header("Ownership")]
+        [Tooltip(
+            "BindToExisting: agent is pre-declared on the backend. Unity binds to it as a visual " +
+            "shell — no registration RPC is sent.\n\n" +
+            "CreateAtRuntime: agent is owned by Unity. Registered on connect, unregistered on destroy. " +
+            "Requires Brain Class.")]
+        [SerializeField] private AgentOwnershipMode ownershipMode = AgentOwnershipMode.BindToExisting;
+
         [Header("Identity")]
         [Tooltip(
-            "Unique agent ID. Must be unique within the simulation and match the backend YAML " +
-            "config when agents are pre-declared. Leave empty to auto-generate from the " +
-            "GameObject name at startup.")]
+            "Unique agent ID. Must match the backend agent exactly in BindToExisting mode. " +
+            "In CreateAtRuntime mode, leave empty to auto-generate from the GameObject name.")]
         [SerializeField] private string agentId = "";
 
         [Tooltip("Human-readable name shown in logs and events. Defaults to the GameObject name.")]
         [SerializeField] private string displayName = "";
 
+        [Header("Role")]
         [Tooltip(
             "Agent role injected as the 'role' key in every tick observation " +
-            "(e.g. 'Guard', 'Merchant', 'Villager'). Used by the backend brain " +
-            "for context.")]
+            "(e.g. 'Guard', 'Merchant', 'Villager').")]
         [SerializeField] private string role = "";
 
         [Tooltip(
             "Capability tags forwarded as the 'capabilities' key in every tick observation " +
-            "(e.g. 'patrol', 'trade', 'social'). The backend brain uses these to decide " +
-            "which actions are available.")]
+            "(e.g. 'patrol', 'trade', 'social').")]
         [SerializeField] private string[] capabilities = Array.Empty<string>();
 
         [Header("Brain")]
         [Tooltip(
-            "Fully-qualified Python class path for the agent brain.\n" +
+            "Fully-qualified Python class path for the agent brain. Required in CreateAtRuntime mode.\n" +
             "Examples:\n" +
             "  src.plugins.builtin.ollama.brain.OllamaLLMBrain\n" +
-            "  src.plugins.builtin.waypoint_brain.brain.WaypointBrain\n" +
-            "Required — registration fails without this.")]
+            "  src.plugins.builtin.waypoint_brain.brain.WaypointBrain")]
         [SerializeField] private string brainClass = "";
 
         [Tooltip(
@@ -71,8 +78,7 @@ namespace Biomata.Integration
         [SerializeField] private string memoryClass = "";
 
         [Tooltip(
-            "JSON object forwarded to the brain constructor as keyword arguments. " +
-            "Leave empty for no extra config.\n" +
+            "JSON object forwarded to the brain constructor as keyword arguments.\n" +
             "Example: {\"model\": \"qwen2.5:14b\", \"temperature\": 0.7}")]
         [TextArea(3, 8)]
         [SerializeField] private string brainConfigJson = "";
@@ -83,8 +89,9 @@ namespace Biomata.Integration
 
         [Header("Lifecycle")]
         [Tooltip(
-            "Register this agent with the backend automatically when the simulation " +
-            "manager connects. Disable to register manually via Bridge.Register().")]
+            "BindToExisting: automatically bind to the backend agent when the manager connects.\n" +
+            "CreateAtRuntime: automatically register with the backend when the manager connects.\n" +
+            "Disable to call Bridge.Register() or Bridge.MarkBoundToExisting() manually.")]
         [SerializeField] private bool autoRegister = true;
 
         // ── Events ────────────────────────────────────────────────────────────────
@@ -100,6 +107,9 @@ namespace Biomata.Integration
 
         // ── Public API ────────────────────────────────────────────────────────────
 
+        /// <summary>The current ownership mode.</summary>
+        public AgentOwnershipMode OwnershipMode => ownershipMode;
+
         /// <summary>
         /// The underlying agent bridge. Available after Awake.
         /// Use this for low-level control (manual Register, Unregister, etc.).
@@ -107,16 +117,18 @@ namespace Biomata.Integration
         public UnityAgentBridge Bridge { get; private set; }
 
         /// <summary>
-        /// Resolved agent identifier. In edit mode this reflects the raw Inspector
-        /// field; at runtime it reflects the value passed to the bridge (auto-generated
-        /// if the field was empty).
+        /// Resolved agent identifier. In edit mode reflects the raw Inspector field;
+        /// at runtime reflects the value passed to the bridge.
         /// </summary>
         public string AgentId => Bridge != null ? Bridge.AgentId : agentId;
 
         /// <summary>Display name used in logs and events.</summary>
         public string DisplayName => Bridge != null ? Bridge.AgentName : displayName;
 
-        /// <summary>True once the backend has acknowledged registration.</summary>
+        /// <summary>
+        /// True once the backend has acknowledged registration (CreateAtRuntime) or
+        /// the agent has been bound (BindToExisting).
+        /// </summary>
         public bool IsRegistered => Bridge?.IsRegistered == true;
 
         /// <summary>Most recent decision received from the backend, or <c>null</c>.</summary>
@@ -129,22 +141,29 @@ namespace Biomata.Integration
         /// Omit parameters to leave the corresponding Inspector value unchanged.
         /// </summary>
         public void Configure(
-            string   agentId,
-            string   displayName  = null,
-            string   role         = null,
-            string[] capabilities = null,
-            string   brainClass   = null,
-            string   memoryClass  = null,
-            bool     autoRegister = true)
+            string             agentId,
+            string             displayName    = null,
+            string             role           = null,
+            string[]           capabilities   = null,
+            string             brainClass     = null,
+            string             memoryClass    = null,
+            bool               autoRegister   = true,
+            AgentOwnershipMode ownershipMode  = AgentOwnershipMode.BindToExisting)
         {
-            this.agentId      = agentId;
+            this.agentId       = agentId;
+            this.ownershipMode = ownershipMode;
             if (displayName  != null) this.displayName  = displayName;
             if (role         != null) this.role         = role;
             if (capabilities != null) this.capabilities = capabilities;
             if (brainClass   != null) this.brainClass   = brainClass;
             if (memoryClass  != null) this.memoryClass  = memoryClass;
-            this.autoRegister = autoRegister;
+            this.autoRegister  = autoRegister;
         }
+
+        // ── Private ───────────────────────────────────────────────────────────────
+
+        private UnitySimulationManager _manager;
+        private string _resolvedId;
 
         // ── Unity lifecycle ───────────────────────────────────────────────────────
 
@@ -152,41 +171,88 @@ namespace Biomata.Integration
         {
             Bridge = GetComponent<UnityAgentBridge>();
 
-            var resolvedId   = string.IsNullOrEmpty(agentId)
+            _resolvedId = string.IsNullOrEmpty(agentId)
                 ? $"{gameObject.name}_{GetInstanceID():x8}"
                 : agentId;
             var resolvedName = string.IsNullOrEmpty(displayName) ? gameObject.name : displayName;
 
-            Bridge.Configure(
-                agentId:     resolvedId,
-                agentName:   resolvedName,
-                autoRegister: autoRegister,
-                brainClass:  string.IsNullOrEmpty(brainClass)  ? null : brainClass,
-                memoryClass: string.IsNullOrEmpty(memoryClass) ? null : memoryClass,
-                brainConfig:  ParseJsonConfig(brainConfigJson),
-                memoryConfig: ParseJsonConfig(memoryConfigJson));
+            if (ownershipMode == AgentOwnershipMode.CreateAtRuntime)
+            {
+                Bridge.Configure(
+                    agentId:      _resolvedId,
+                    agentName:    resolvedName,
+                    autoRegister: autoRegister,
+                    brainClass:   string.IsNullOrEmpty(brainClass)  ? null : brainClass,
+                    memoryClass:  string.IsNullOrEmpty(memoryClass) ? null : memoryClass,
+                    brainConfig:  ParseJsonConfig(brainConfigJson),
+                    memoryConfig: ParseJsonConfig(memoryConfigJson));
+            }
+            else // BindToExisting
+            {
+                // Suppress the bridge's own registration — we handle binding in Start.
+                Bridge.Configure(
+                    agentId:      _resolvedId,
+                    agentName:    resolvedName,
+                    autoRegister: false,
+                    brainClass:   null,
+                    memoryClass:  null,
+                    brainConfig:  null,
+                    memoryConfig: null);
+            }
 
             Bridge.OnDecisionReceived += d => OnDecisionReceived?.Invoke(d);
             Bridge.OnActionStarted   += a => OnActionStarted?.Invoke(a);
             Bridge.OnActionCompleted += a => OnActionCompleted?.Invoke(a);
 
-            // Inject static metadata into every observation so the brain
-            // always has role and capability context without extra YAML setup.
             var collector = GetComponent<ObservationCollector>();
             if (!string.IsNullOrEmpty(role))
                 collector.SetData("role", role);
             if (capabilities != null && capabilities.Length > 0)
                 collector.SetData("capabilities", capabilities);
 
-            ValidateAtRuntime(resolvedId);
+            ValidateAtRuntime(_resolvedId);
+        }
+
+        private void Start()
+        {
+            _manager = UnitySimulationManager.Instance ?? FindFirstObjectByType<UnitySimulationManager>();
+
+            if (ownershipMode == AgentOwnershipMode.CreateAtRuntime)
+                return; // Bridge handles registration via its own Start()
+
+            // BindToExisting — bind visual shell to the pre-existing backend agent.
+            if (!autoRegister || _manager == null) return;
+
+            if (_manager.IsConnected)
+                Bridge.MarkBoundToExisting();
+            else
+                _manager.OnConnected += HandleManagerConnectedBind;
+        }
+
+        private void OnDestroy()
+        {
+            if (_manager != null)
+                _manager.OnConnected -= HandleManagerConnectedBind;
+
+            if (ownershipMode == AgentOwnershipMode.CreateAtRuntime
+                && Bridge != null
+                && Bridge.IsRegistered
+                && _manager?.Client != null)
+            {
+                // Fire-and-forget: Task continues even after MonoBehaviour is destroyed.
+                _ = _manager.Client.Agents.TryRemoveAsync(_resolvedId);
+            }
+        }
+
+        private void HandleManagerConnectedBind()
+        {
+            _manager.OnConnected -= HandleManagerConnectedBind;
+            Bridge.MarkBoundToExisting();
         }
 
         // ── Editor-only callbacks ─────────────────────────────────────────────────
 
 #if UNITY_EDITOR
-        // Called by Unity when the component is first added to a GameObject,
-        // and when "Reset" is chosen from the component context menu.
-        // Adds a default set of providers and handlers so the NPC works immediately.
         private void Reset()
         {
             AddIfMissing<TransformObservationProvider>();
@@ -200,11 +266,12 @@ namespace Biomata.Integration
             if (string.IsNullOrEmpty(agentId))
                 Debug.LogWarning(
                     $"[BiomataAgent] '{name}': Agent ID is empty. " +
-                    "Assign a unique ID to match the backend config.", this);
+                    "Assign a unique ID matching the backend agent.", this);
 
-            if (string.IsNullOrEmpty(brainClass))
+            if (ownershipMode == AgentOwnershipMode.CreateAtRuntime
+                && string.IsNullOrEmpty(brainClass))
                 Debug.LogWarning(
-                    $"[BiomataAgent] '{name}': Brain Class is empty. " +
+                    $"[BiomataAgent] '{name}': Brain Class is required in CreateAtRuntime mode. " +
                     "Set a fully-qualified Python brain class path.", this);
 
             if (!string.IsNullOrEmpty(agentId))

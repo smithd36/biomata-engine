@@ -164,6 +164,18 @@ namespace Biomata.Integration
         /// <summary>Remove this agent from the running simulation.</summary>
         public void Unregister() => StartCoroutine(UnregisterCoroutine());
 
+        /// <summary>
+        /// Mark this bridge as bound to a pre-existing backend agent without sending
+        /// a registration RPC. Called by <see cref="BiomataAgent"/> in
+        /// <see cref="AgentOwnershipMode.BindToExisting"/> mode, and available for
+        /// manual use when the backend agent is known to exist.
+        /// </summary>
+        public void MarkBoundToExisting()
+        {
+            IsRegistered = true;
+            Debug.Log($"[Biomata] Bound to existing agent: {agentId} ({agentName})");
+        }
+
         private IEnumerator RegisterCoroutine()
         {
             if (_manager?.Client == null) yield break;

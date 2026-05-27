@@ -40,12 +40,14 @@ class Event:
 # ── Standard event type constants ─────────────────────────────────────────────
 # Use these rather than raw strings so typos are caught at import time.
 
-TICK_START       = "tick_start"
-TICK_END         = "tick_end"
-ACTION_COMPLETED = "action_completed"
-ACTION_FAILED    = "action_failed"
-BRAIN_DECIDED    = "brain_decided"       # emitted by brains that record prompt/raw output
-AGENT_STEP_ERROR = "agent_step_error"
+TICK_START         = "tick_start"
+TICK_END           = "tick_end"
+ACTION_COMPLETED   = "action_completed"
+ACTION_FAILED      = "action_failed"
+BRAIN_DECIDED      = "brain_decided"       # emitted by brains that record prompt/raw output
+AGENT_STEP_ERROR   = "agent_step_error"
+AGENT_REGISTERED   = "agent_registered"   # emitted after successful runtime registration
+AGENT_UNREGISTERED = "agent_unregistered" # emitted after successful runtime unregistration
 
 
 # ── EventBus ──────────────────────────────────────────────────────────────────

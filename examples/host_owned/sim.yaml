@@ -1,0 +1,41 @@
+# examples/host_owned/sim.yaml
+#
+# Host-Owned pattern — canonical example.
+#
+# The backend starts with no agents. Unity owns the full agent lifecycle:
+# spawning prefabs, registering agents via CreateAtRuntime, and
+# unregistering them on destroy. The backend is a pure execution engine.
+#
+# When to use this pattern:
+#   • Unity (the host engine) determines which NPCs exist — not a config file.
+#   • Agent roster changes at runtime: procedural spawning, player-placed NPCs,
+#     level-load transitions that swap agents between scenes.
+#   • Different deployments of the same game use different agent sets.
+#   • You want zero-downtime brain hot-swap: destroy an agent, spawn a new
+#     one with a different brain_class, same visual prefab.
+#
+# Unity setup:
+#   1. Place BiomataAgent on each NPC prefab.
+#   2. Set ownershipMode = CreateAtRuntime.
+#   3. Set Brain Class to a fully-qualified Python path.
+#   4. Attach the HostOwnedManager sample to coordinate spawning.
+#
+# Note: the agents block is intentionally absent.
+# The backend starts empty and accepts registrations from Unity.
+#
+# Start backend:
+#   biomata-ws --config examples/host_owned/sim.yaml --port 8765
+
+engine:
+  ticks: 99999
+  seed:  1
+  scheduler: simultaneous
+
+world:
+  class: src.plugins.external.world.HostedWorld
+
+# registry: intentionally omitted — Unity supplies agent definitions,
+#           which include the brain class path. The backend discovers
+#           brains via dynamic import at registration time.
+
+# No agents block. Unity calls agent.register (or register_agent) for each NPC.

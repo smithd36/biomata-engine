@@ -46,8 +46,7 @@ import pickle
 from typing import Any
 
 from src.contracts.snapshot import SimulationSnapshot, SnapshotError
-from src.engine.agent import Agent
-from src.plugins.builtin.simple_memory.memory import SimpleMemory
+from src.engine.agent_definition import AgentDefinition, AgentDefinitionError, validate_definition
 from src.service import (
     AgentObservationDTO,
     ServiceEvent,
@@ -239,6 +238,12 @@ class ConnectionHandler:
             return self._handle_subscribe_events(params)
         if method == Method.UNSUBSCRIBE_EVENTS:
             return self._handle_unsubscribe_events()
+        if method == Method.AGENT_REGISTER:
+            return self._handle_agent_register(params)
+        if method == Method.AGENT_UNREGISTER:
+            return self._handle_agent_unregister(params)
+        if method == Method.AGENT_LIST:
+            return self._handle_agent_list()
         raise ProtocolError(f"unknown method '{method}'", ErrorCode.METHOD_NOT_FOUND)
 
     # ── Method handlers ───────────────────────────────────────────────────────
@@ -254,51 +259,85 @@ class ConnectionHandler:
         }
 
     def _handle_register_agent(self, params: dict[str, Any]) -> dict[str, Any]:
-        agent_id     = params.get("agent_id")
-        agent_name   = params.get("agent_name")
-        brain_class  = params.get("brain_class")
-        brain_kwargs = params.get("brain_config")  or {}
-        memory_class = params.get("memory_class")  or ""
-        memory_kw    = params.get("memory_config") or {}
+        # ── Parse params ──────────────────────────────────────────────────────
+        agent_id      = params.get("agent_id")      or ""
+        agent_name    = params.get("agent_name")     or ""
+        brain_class   = params.get("brain_class")    or ""
+        brain_config  = params.get("brain_config")   or {}
+        memory_class  = params.get("memory_class")   or None
+        memory_config = params.get("memory_config")  or {}
+        capabilities  = params.get("capabilities")   or []
+        inventory     = params.get("inventory")      or {}
+        metadata      = params.get("metadata")       or {}
+        # reconnect=True: if the agent is already registered, return its info
+        # without error (safe to call on WebSocket reconnect).
+        reconnect     = bool(params.get("reconnect", False))
 
-        if not agent_id:
-            raise ProtocolError("agent_id is required", ErrorCode.INVALID_PARAMS)
-        if not agent_name:
-            raise ProtocolError("agent_name is required", ErrorCode.INVALID_PARAMS)
-        if not brain_class:
-            raise ProtocolError("brain_class is required", ErrorCode.INVALID_PARAMS)
+        # ── Reconnect shortcut ────────────────────────────────────────────────
+        if reconnect:
+            existing = next(
+                (a for a in self._sim.agents if a.id == agent_id), None
+            )
+            if existing is not None:
+                return {
+                    "agent_id":    existing.id,
+                    "reconnected": True,
+                    "capabilities": list(existing.capabilities),
+                }
 
-        if any(a.id == agent_id for a in self._sim.agents):
+        # ── Validate & build definition ───────────────────────────────────────
+        defn = AgentDefinition(
+            id            = agent_id,
+            name          = agent_name,
+            brain_class   = brain_class,
+            brain_config  = brain_config  if isinstance(brain_config, dict)  else {},
+            memory_class  = memory_class  or None,
+            memory_config = memory_config if isinstance(memory_config, dict) else {},
+            capabilities  = capabilities  if isinstance(capabilities, list)  else [],
+            inventory     = inventory     if isinstance(inventory, dict)     else {},
+            metadata      = metadata      if isinstance(metadata, dict)      else {},
+        )
+
+        errors = validate_definition(defn)
+        if errors:
             raise ProtocolError(
-                f"agent '{agent_id}' already registered",
-                ErrorCode.AGENT_EXISTS,
+                "; ".join(str(e) for e in errors),
+                ErrorCode.VALIDATION_ERROR,
             )
 
+        # ── Register through the session (not directly on sim) ────────────────
         try:
-            brain_cls = _import_dotted(brain_class)
-            brain     = brain_cls(**brain_kwargs)
-            memory    = _import_dotted(memory_class)(**memory_kw) if memory_class else SimpleMemory()
-            agent     = Agent(id=agent_id, name=agent_name, brain=brain, memory=memory)
+            agent = self._session.register_agent(defn)
+        except AgentDefinitionError as exc:
+            code = (
+                ErrorCode.AGENT_EXISTS
+                if exc.field == "id"
+                else ErrorCode.VALIDATION_ERROR
+            )
+            raise ProtocolError(str(exc), code) from exc
         except (ImportError, AttributeError) as exc:
             raise ProtocolError(f"import error: {exc}", ErrorCode.IMPORT_ERROR) from exc
         except Exception as exc:    # noqa: BLE001
             raise ProtocolError(str(exc), ErrorCode.INVALID_PARAMS) from exc
 
-        self._sim.agents.append(agent)
-        if hasattr(self._world, "register_agents"):
-            self._world.register_agents(self._sim.agents)
-        return {"agent_id": agent_id}
+        return {
+            "agent_id":     agent.id,
+            "reconnected":  False,
+            "capabilities": list(agent.capabilities),
+        }
 
     def _handle_remove_agent(self, params: dict[str, Any]) -> dict[str, Any]:
         agent_id = params.get("agent_id")
         if not agent_id:
             raise ProtocolError("agent_id is required", ErrorCode.INVALID_PARAMS)
-        before = len(self._sim.agents)
-        self._sim.agents = [a for a in self._sim.agents if a.id != agent_id]
-        if len(self._sim.agents) == before:
-            raise ProtocolError(f"agent '{agent_id}' not found", ErrorCode.AGENT_NOT_FOUND)
-        if hasattr(self._world, "register_agents"):
-            self._world.register_agents(self._sim.agents)
+
+        try:
+            self._session.unregister_agent(agent_id)
+        except KeyError as exc:
+            raise ProtocolError(
+                f"agent '{agent_id}' not found", ErrorCode.AGENT_NOT_FOUND
+            ) from exc
+
         return {"agent_id": agent_id}
 
     def _handle_send_observation(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -408,6 +447,101 @@ class ConnectionHandler:
             raise ProtocolError(str(exc), ErrorCode.INTERNAL_ERROR) from exc
 
         return {"tick": snap.tick}
+
+    # ── v2 dot-notation agent methods ─────────────────────────────────────────
+    # These accept a nested payload shape (brain:{class,config}, id/name keys)
+    # and route through the same session.register_agent / unregister_agent path.
+
+    def _handle_agent_register(self, params: dict[str, Any]) -> dict[str, Any]:
+        brain  = params.get("brain")  or {}
+        memory = params.get("memory") or {}
+
+        agent_id      = params.get("id")       or ""
+        agent_name    = params.get("name")      or ""
+        brain_class   = brain.get("class")      or ""
+        brain_config  = brain.get("config")     or {}
+        memory_class  = memory.get("class")     or None
+        memory_config = memory.get("config")    or {}
+        capabilities  = params.get("capabilities") or []
+        inventory     = params.get("inventory")    or {}
+        metadata      = params.get("metadata")     or {}
+        reconnect     = bool(params.get("reconnect", False))
+
+        if reconnect:
+            existing = next(
+                (a for a in self._sim.agents if a.id == agent_id), None
+            )
+            if existing is not None:
+                return {
+                    "id":           existing.id,
+                    "reconnected":  True,
+                    "capabilities": list(existing.capabilities),
+                }
+
+        defn = AgentDefinition(
+            id            = agent_id,
+            name          = agent_name,
+            brain_class   = brain_class,
+            brain_config  = brain_config  if isinstance(brain_config, dict)  else {},
+            memory_class  = memory_class  or None,
+            memory_config = memory_config if isinstance(memory_config, dict) else {},
+            capabilities  = capabilities  if isinstance(capabilities, list)  else [],
+            inventory     = inventory     if isinstance(inventory, dict)     else {},
+            metadata      = metadata      if isinstance(metadata, dict)      else {},
+        )
+
+        errors = validate_definition(defn)
+        if errors:
+            raise ProtocolError(
+                "; ".join(str(e) for e in errors),
+                ErrorCode.VALIDATION_ERROR,
+            )
+
+        try:
+            agent = self._session.register_agent(defn)
+        except AgentDefinitionError as exc:
+            code = (
+                ErrorCode.AGENT_EXISTS
+                if exc.field == "id"
+                else ErrorCode.VALIDATION_ERROR
+            )
+            raise ProtocolError(str(exc), code) from exc
+        except (ImportError, AttributeError) as exc:
+            raise ProtocolError(f"import error: {exc}", ErrorCode.IMPORT_ERROR) from exc
+        except Exception as exc:    # noqa: BLE001
+            raise ProtocolError(str(exc), ErrorCode.INVALID_PARAMS) from exc
+
+        return {
+            "id":           agent.id,
+            "reconnected":  False,
+            "capabilities": list(agent.capabilities),
+        }
+
+    def _handle_agent_unregister(self, params: dict[str, Any]) -> dict[str, Any]:
+        agent_id = params.get("id")
+        if not agent_id:
+            raise ProtocolError("id is required", ErrorCode.INVALID_PARAMS)
+
+        try:
+            self._session.unregister_agent(agent_id)
+        except KeyError as exc:
+            raise ProtocolError(
+                f"agent '{agent_id}' not found", ErrorCode.AGENT_NOT_FOUND
+            ) from exc
+
+        return {"id": agent_id}
+
+    def _handle_agent_list(self) -> dict[str, Any]:
+        agents = [
+            {
+                "id":           a.id,
+                "name":         a.name,
+                "capabilities": list(a.capabilities),
+                "metadata":     dict(a.metadata),
+            }
+            for a in self._sim.agents
+        ]
+        return {"agents": agents, "count": len(agents)}
 
     # ── Event subscription ────────────────────────────────────────────────────
 
