@@ -34,8 +34,14 @@ engine:
 world:
   class: src.plugins.external.world.HostedWorld
 
-# registry: intentionally omitted — Unity supplies agent definitions,
-#           which include the brain class path. The backend discovers
-#           brains via dynamic import at registration time.
+# Constrain the LLM to exactly four action names that map 1-to-1 to the
+# built-in Unity ActionHandlerBase components. Add these four components to
+# your agent's GameObject in Unity:
+#   • IdleActionHandler     → "idle"
+#   • MoveActionHandler     → "move"
+#   • SpeakActionHandler    → "speak"
+#   • InteractActionHandler → "interact"
+registry:
+  class: src.plugins.builtin.ollama.registry.build_hosted_registry
 
 # No agents block. Unity calls agent.register (or register_agent) for each NPC.
