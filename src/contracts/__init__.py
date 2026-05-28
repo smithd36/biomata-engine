@@ -1,4 +1,4 @@
-from .action import ActionHandler, ActionKind, ActionResult, ActionSchema, ActionValidationError, Intent, parse_intent
+from .action import ActionHandler, ActionHint, ActionKind, ActionResult, ActionSchema, ActionValidationError, Intent, StateMutations, parse_intent
 from .brain import Brain, BrainContext, Observation
 from .memory import Memory
 from .observation import ObservationSchema, ObservationProvider

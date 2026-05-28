@@ -54,22 +54,55 @@ class ComponentConfig(BaseModel):
         return self.model_extra or {}
 
 
+class BrainRoleConfig(BaseModel):
+    """
+    Brain config within a role definition.
+    Accepts either a provider shorthand or an explicit class path.
+    Extra fields are forwarded as kwargs to the brain constructor.
+    """
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+    provider: str | None = None
+    class_:   str | None = Field(default=None, alias="class")
+
+    def kwargs(self) -> dict[str, Any]:
+        return self.model_extra or {}
+
+
+class RoleConfig(BaseModel):
+    """
+    A flat role bundle: capabilities + default brain.
+
+    Example
+    -------
+      Guard:
+        capabilities: [guard, patrol, authority]
+        brain:
+          provider: ollama
+          model: llama3
+    """
+    capabilities: list[str]              = Field(default_factory=list)
+    brain:        BrainRoleConfig | None = None
+
+
 class AgentConfig(BaseModel):
     id:           str
     name:         str
-    brain:        ComponentConfig
+    role:         str | None          = None   # optional: reference to a declared role
+    brain:        ComponentConfig | None = None  # optional when role supplies a brain
     state_ext:    ComponentConfig | None = None
     memory:       ComponentConfig | None = None
     position:     dict[str, Any]  | None = None
     inventory:    dict[str, Any]         = Field(default_factory=dict)
     capabilities: list[str]              = Field(default_factory=list)
+    metadata:     dict[str, Any]         = Field(default_factory=dict)
 
 
 class SimConfig(BaseModel):
-    engine:       EngineConfig             = Field(default_factory=EngineConfig)
+    engine:       EngineConfig              = Field(default_factory=EngineConfig)
     world:        ComponentConfig
-    registry:     ComponentConfig | None   = None
-    observations: ComponentConfig | None   = None
-    social:       ComponentConfig | None   = None
-    llm:          dict[str, Any]           = Field(default_factory=dict)
-    agents:       list[AgentConfig]        = Field(default_factory=list)
+    registry:     ComponentConfig | None    = None
+    observations: ComponentConfig | None    = None
+    social:       ComponentConfig | None    = None
+    llm:          dict[str, Any]            = Field(default_factory=dict)
+    roles:        dict[str, RoleConfig]     = Field(default_factory=dict)
+    agents:       list[AgentConfig]         = Field(default_factory=list)

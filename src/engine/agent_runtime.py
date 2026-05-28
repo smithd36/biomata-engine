@@ -125,19 +125,17 @@ class AgentRuntime:
         else:
             result = self.registry.dispatch(intent, view, self.world)
 
-        # 6a. Apply state_ext mutations
-        state_mutations = result.state_mutations
-        if state_ext is not None and state_mutations:
-            state_ext.apply_mutations(state_mutations)
+        # 6a. Apply state_ext mutations (ext dict only — not inventory)
+        mutations = result.mutations
+        if state_ext is not None and mutations.ext:
+            state_ext.apply_mutations(mutations.ext)
 
         # 6b. Apply inventory mutations (int deltas only)
-        if state_mutations:
-            inv_deltas = state_mutations.get("inventory")
-            if inv_deltas:
-                agent_inv = agent.inventory
-                for item, delta in inv_deltas.items():
-                    if isinstance(delta, int) and isinstance(item, str):
-                        agent_inv[item] = max(0, agent_inv.get(item, 0) + delta)
+        if mutations.inventory:
+            agent_inv = agent.inventory
+            for item, delta in mutations.inventory.items():
+                if isinstance(delta, int) and isinstance(item, str):
+                    agent_inv[item] = max(0, agent_inv.get(item, 0) + delta)
 
         # 6c. Let world apply cross-agent effects
         self.world.apply(agent.id, result)

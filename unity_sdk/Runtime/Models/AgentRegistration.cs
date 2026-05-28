@@ -42,5 +42,12 @@ namespace Biomata.SDK.Models
 
         /// <summary>Keyword arguments for the memory constructor.</summary>
         public Dictionary<string, object> MemoryConfig { get; set; }
+
+        /// <summary>
+        /// Capability tags for the agent. Gates which action schemas and observation
+        /// providers are visible on the backend. Maps to <c>Agent.capabilities</c>.
+        /// Null or empty means no capability-gated actions are available.
+        /// </summary>
+        public string[] Capabilities { get; set; }
     }
 }

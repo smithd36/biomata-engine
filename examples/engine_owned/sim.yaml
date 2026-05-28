@@ -6,6 +6,9 @@
 # shell to each one using BiomataAgent in BindToExisting mode.
 # No registration RPC is ever sent from Unity.
 #
+# This example uses roles to bundle capabilities and brain config, so
+# each agent declaration is a single role reference.
+#
 # When to use this pattern:
 #   • The simulation is the source of truth — it runs with or without Unity.
 #   • Agent count, identity, and brain config are locked at deploy time.
@@ -16,7 +19,8 @@
 #   1. Place BiomataAgent on each NPC prefab.
 #   2. Set ownershipMode = BindToExisting.
 #   3. Set agentId to match the id fields below exactly.
-#   4. Attach the EngineOwnedManager sample to the scene coordinator.
+#   4. Set role to match the role name (e.g. "Guard") for inspector validation.
+#   5. Attach the EngineOwnedManager sample to the scene coordinator.
 #
 # Start backend:
 #   biomata-ws --config examples/engine_owned/sim.yaml --port 8765
@@ -30,33 +34,67 @@ world:
   class: src.plugins.external.world.HostedWorld
 
 registry:
-  class: src.plugins.builtin.idle_brain.registry.build_idle_registry
+  class: src.plugins.builtin.ollama.registry.build_hosted_registry
+
+# ── Role definitions ───────────────────────────────────────────────────────────
+#
+# Roles are flat bundles. An agent that declares role: Guard inherits the
+# capabilities and brain below. The agent may also set its own capabilities
+# (additive union) or brain (explicit agent brain overrides the role brain).
+
+roles:
+
+  Guard:
+    capabilities: [guard, patrol, authority]
+    brain:
+      provider: idle          # idle = src.plugins.builtin.idle_brain.brain.IdleBrain
+    observations:
+      - position
+      - nearby_agents
+      - patrol_waypoints      # advisory: Unity should have a matching ObservationProvider
+
+  Merchant:
+    capabilities: [trade, social]
+    brain:
+      provider: idle
+    observations:
+      - position
+      - nearby_agents
+
+  Villager:
+    capabilities: [social]
+    brain:
+      provider: idle
+    observations:
+      - position
+      - nearby_agents
+
+# ── Agents ─────────────────────────────────────────────────────────────────────
+#
+# Each agent is fully described by its id, name, and role.
+# capabilities and brain are inherited from the role.
+# Override them inline if a specific agent needs different behaviour.
 
 agents:
 
-  # ── Castle entrance guards ─────────────────────────────────────────────────
-  # Two guards with a deterministic patrol brain. No LLM required.
-  # Unity binds visual capsules to them; the brain logic lives entirely
-  # in Python and is invisible to Unity.
-
   - id: gate_guard_left
     name: Aldric
-    capabilities: [patrol, authority]
-    brain:
-      class: src.plugins.builtin.idle_brain.brain.IdleBrain
+    role: Guard
 
   - id: gate_guard_right
     name: Berna
-    capabilities: [patrol, authority]
-    brain:
-      class: src.plugins.builtin.idle_brain.brain.IdleBrain
+    role: Guard
 
-  # ── Market merchant ────────────────────────────────────────────────────────
-  # A merchant who stays near the market stall.
-  # Swap IdleBrain for OllamaLLMBrain to enable dialogue — no Unity changes needed.
+  # Override a single field while keeping the rest of the role:
+  - id: gate_captain
+    name: Hector
+    role: Guard
+    capabilities: [guard, patrol, authority, commander]  # additive: extends Guard's set
 
   - id: market_merchant
     name: Silas
-    capabilities: [trade, social]
-    brain:
-      class: src.plugins.builtin.idle_brain.brain.IdleBrain
+    role: Merchant
+
+  - id: villager_01
+    name: Mira
+    role: Villager

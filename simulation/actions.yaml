@@ -1,0 +1,124 @@
+# simulation/actions.yaml
+#
+# Canonical action manifest — the single source of truth for action names,
+# parameters, required capabilities, and Unity engine command types.
+#
+# Python reads this to build ActionSchema objects (via ActionManifest.load()).
+# Unity reads the generated BiomataActions.json to validate ActionHandlerBase
+# coverage via Biomata > Validate Action Manifest.
+#
+# After editing this file, regenerate the Unity JSON sidecar:
+#   python -c "
+#     from src.config.manifest import ActionManifest
+#     ActionManifest.load('simulation/actions.yaml') \
+#       .export_json('unity_sdk/Runtime/Resources/BiomataActions.json')
+#   "
+#
+# ── Field reference ────────────────────────────────────────────────────────────
+#
+#  name                  Required. Must be unique, snake_case.
+#  description           Required. Shown to the LLM in the system prompt.
+#  parameters            Optional mapping. Keys are param names, values are type specs:
+#                          str | int | float | bool | "type (description)" | "type?"
+#                          Trailing ? marks the parameter optional.
+#  required_capabilities Optional list. Empty or absent = universal (all agents see it).
+#                          Agent must share at least one capability tag with this list
+#                          to see or execute the action.
+#  engine_command        Optional string. The "type" value expected in EngineCommands
+#                          on the Unity side. Documentary only — does not affect Python.
+#  kind                  Optional. host | engine | hybrid (default: hybrid).
+#                          host   — Unity executes via engine_commands; Python packages only.
+#                          engine — Python executes; may mutate world/inventory/social.
+#                          hybrid — both Python processing AND Unity commands.
+
+version: "1"
+
+actions:
+
+  # ── Universal actions (visible to all agents) ──────────────────────────────
+
+  - name: idle
+    description: Do nothing this tick. Rest or wait in place.
+    kind: engine
+
+  - name: move
+    description: Move toward a destination or in a direction.
+    parameters:
+      destination: str
+      speed: float?
+    engine_command: navigate
+    kind: host
+
+  - name: speak
+    description: Say something aloud — to a nearby agent, a group, or the world.
+    parameters:
+      message: str
+      target: str?
+    engine_command: speak
+    kind: hybrid
+
+  - name: interact
+    description: Interact with a nearby object or agent.
+    parameters:
+      target: str
+      interaction_type: str?
+    engine_command: interact
+    kind: hybrid
+
+  # ── Guard / authority actions ──────────────────────────────────────────────
+
+  - name: patrol
+    description: Move to a named waypoint on the patrol route.
+    parameters:
+      waypoint: str
+    required_capabilities: [guard, patrol]
+    engine_command: navigate
+    kind: host
+
+  - name: alert
+    description: Raise an alarm about a nearby threat.
+    parameters:
+      target: str
+      threat_level: int?
+    required_capabilities: [guard, authority]
+    engine_command: play_animation
+    kind: hybrid
+
+  - name: detain
+    description: Attempt to detain a suspicious target agent.
+    parameters:
+      target: str
+      reason: str?
+    required_capabilities: [authority]
+    engine_command: interact
+    kind: hybrid
+
+  # ── Trade / merchant actions ───────────────────────────────────────────────
+
+  - name: trade
+    description: Offer or accept a trade with a nearby agent.
+    parameters:
+      target: str
+      offer: str
+      request: str?
+    required_capabilities: [trade, merchant]
+    engine_command: interact
+    kind: hybrid
+
+  # ── Social actions ─────────────────────────────────────────────────────────
+
+  - name: greet
+    description: Greet a nearby agent to build social rapport.
+    parameters:
+      target: str
+    required_capabilities: [social]
+    engine_command: speak
+    kind: hybrid
+
+  - name: follow
+    description: Follow a target agent across the scene.
+    parameters:
+      target: str
+    required_capabilities: [social]
+    engine_command: navigate
+    kind: host

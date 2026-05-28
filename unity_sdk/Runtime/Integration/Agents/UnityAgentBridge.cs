@@ -52,18 +52,20 @@ namespace Biomata.Integration
         /// </summary>
         public void Configure(
             string agentId,
-            string agentName   = null,
+            string agentName    = null,
             bool   autoRegister = true,
-            string brainClass  = null,
-            string memoryClass = null,
+            string brainClass   = null,
+            string memoryClass  = null,
             Dictionary<string, object> brainConfig  = null,
-            Dictionary<string, object> memoryConfig = null)
+            Dictionary<string, object> memoryConfig = null,
+            string[] capabilities = null)
         {
             this.agentId      = agentId;
             this.agentName    = string.IsNullOrEmpty(agentName) ? agentId : agentName;
             this.autoRegister = autoRegister;
-            if (brainClass  != null) this.brainClass  = brainClass;
-            if (memoryClass != null) this.memoryClass = memoryClass;
+            if (brainClass    != null) this.brainClass  = brainClass;
+            if (memoryClass   != null) this.memoryClass = memoryClass;
+            if (capabilities  != null) _capabilities    = capabilities;
             _brainConfig  = brainConfig;
             _memoryConfig = memoryConfig;
         }
@@ -102,6 +104,7 @@ namespace Biomata.Integration
         // Set via Configure(); forwarded to AgentRegistration on register.
         private Dictionary<string, object> _brainConfig;
         private Dictionary<string, object> _memoryConfig;
+        private string[]                   _capabilities;
 
         // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -188,6 +191,7 @@ namespace Biomata.Integration
                 MemoryClass  = string.IsNullOrEmpty(memoryClass) ? null : memoryClass,
                 BrainConfig  = _brainConfig,
                 MemoryConfig = _memoryConfig,
+                Capabilities = _capabilities is { Length: > 0 } ? _capabilities : null,
             };
 
             var task = _manager.Client.Agents.RegisterAsync(reg);

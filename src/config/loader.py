@@ -105,18 +105,31 @@ def _import(dotted_path: str) -> Any:
 
 def _call_factory(fn: Any, **kwargs: Any) -> Any:
     """
-    Call fn with only the kwargs declared in its signature.
+    Call fn with the kwargs it declares in its signature.
 
-    Allows factory functions to opt into receiving engine-managed objects
-    (e.g. `social`) by declaring a matching parameter name, while zero-arg
-    factories continue to work unchanged. Extra YAML kwargs are forwarded
-    on the same basis.
+    If fn accepts **kwargs (VAR_KEYWORD), all provided kwargs are forwarded —
+    this handles brain constructors like OllamaLLMBrain that absorb extras.
+
+    If fn declares only specific parameters, only matching kwargs are forwarded —
+    this handles registry factories that opt into specific injected values
+    (e.g. `social`) while ignoring everything else.
+
+    Zero-arg callables continue to work unchanged.
     """
     try:
         sig    = inspect.signature(fn)
         params = sig.parameters
     except (ValueError, TypeError):
         return fn()
+
+    # If any parameter accepts **kwargs, pass everything through
+    has_var_kw = any(
+        p.kind == inspect.Parameter.VAR_KEYWORD
+        for p in params.values()
+    )
+    if has_var_kw:
+        return fn(**kwargs)
+
     accepted = {k: v for k, v in kwargs.items() if k in params}
     return fn(**accepted)
 
@@ -170,8 +183,18 @@ def _build_simulation(cfg: dict, base_dir: str = ".") -> "Simulation":  # noqa: 
 
     # ── Registry ───────────────────────────────────────────────────────────
     if sim.registry is not None:
+        registry_kwargs = dict(sim.registry.kwargs())
+
+        # If a manifest path is declared, load it and pass the ActionManifest object
+        # to the factory so it can call manifest.schema("x") instead of constructing
+        # ActionSchema objects by hand.
+        if "manifest" in registry_kwargs:
+            from src.config.manifest import ActionManifest
+            manifest_path = Path(base_dir) / registry_kwargs.pop("manifest")
+            registry_kwargs["manifest"] = ActionManifest.load(manifest_path)
+
         build_fn = _import(sim.registry.class_)
-        registry = _call_factory(build_fn, social=social, **sim.registry.kwargs())
+        registry = _call_factory(build_fn, social=social, **registry_kwargs)
     else:
         registry = ActionRegistry()
 
@@ -196,19 +219,52 @@ def _build_simulation(cfg: dict, base_dir: str = ".") -> "Simulation":  # noqa: 
     # ── Agents ─────────────────────────────────────────────────────────────
     agents = []
     for a_cfg in sim.agents:
-        brain_class = _import(a_cfg.brain.class_)
-        brain       = brain_class(llm_config=sim.llm, **a_cfg.brain.kwargs())
+        # ── Role expansion ──────────────────────────────────────────────────
+        # Agent-explicit settings always take precedence over role defaults.
+        role_cfg = None
+        if a_cfg.role is not None:
+            role_cfg = sim.roles.get(a_cfg.role)
+            if role_cfg is None:
+                raise ValueError(
+                    f"Agent '{a_cfg.id}': role '{a_cfg.role}' is not declared "
+                    f"in the roles: block of sim.yaml"
+                )
 
+        # Capabilities: union of explicit + role (role may be empty frozenset)
+        if role_cfg is not None:
+            from src.config.roles import expand_capabilities, expand_brain_config
+            capabilities = expand_capabilities(a_cfg, role_cfg)
+            brain_cfg    = expand_brain_config(a_cfg, role_cfg)
+        else:
+            capabilities = frozenset(a_cfg.capabilities)
+            if a_cfg.brain is None:
+                raise ValueError(
+                    f"Agent '{a_cfg.id}': no brain configured "
+                    f"(set brain: on the agent or assign a role with a brain: block)"
+                )
+            brain_cfg = a_cfg.brain
+
+        # ── Brain ───────────────────────────────────────────────────────────
+        brain_class = _import(brain_cfg.class_)
+        brain       = _call_factory(brain_class, llm_config=sim.llm, **brain_cfg.kwargs())
+
+        # ── Memory ──────────────────────────────────────────────────────────
         if a_cfg.memory is not None:
             mem_class = _import(a_cfg.memory.class_)
             memory    = mem_class(**a_cfg.memory.kwargs())
         else:
             memory = SimpleMemory()
 
+        # ── State extension ─────────────────────────────────────────────────
         state_ext = None
         if a_cfg.state_ext is not None:
             ext_class = _import(a_cfg.state_ext.class_)
             state_ext = ext_class(**a_cfg.state_ext.kwargs())
+
+        # Propagate role name into metadata so downstream systems can inspect it
+        metadata = dict(a_cfg.metadata)
+        if a_cfg.role:
+            metadata.setdefault("role", a_cfg.role)
 
         agent = Agent(
             id           = a_cfg.id,
@@ -217,7 +273,8 @@ def _build_simulation(cfg: dict, base_dir: str = ".") -> "Simulation":  # noqa: 
             memory       = memory,
             inventory    = dict(a_cfg.inventory),
             state_ext    = state_ext,
-            capabilities = frozenset(a_cfg.capabilities),
+            capabilities = capabilities,
+            metadata     = metadata,
         )
         agents.append(agent)
 

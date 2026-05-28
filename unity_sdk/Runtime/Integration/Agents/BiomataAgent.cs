@@ -125,6 +125,9 @@ namespace Biomata.Integration
         /// <summary>Display name used in logs and events.</summary>
         public string DisplayName => Bridge != null ? Bridge.AgentName : displayName;
 
+        /// <summary>The configured role string. Read by the editor validator.</summary>
+        public string RoleForValidation => role;
+
         /// <summary>
         /// True once the backend has acknowledged registration (CreateAtRuntime) or
         /// the agent has been bound (BindToExisting).
@@ -176,16 +179,56 @@ namespace Biomata.Integration
                 : agentId;
             var resolvedName = string.IsNullOrEmpty(displayName) ? gameObject.name : displayName;
 
+            // ── Role expansion ────────────────────────────────────────────────────
+            // Apply role defaults for any fields not set explicitly on this agent.
+            // Agent-level settings always win over role defaults.
+            var resolvedCapabilities = (capabilities != null && capabilities.Length > 0)
+                ? capabilities
+                : Array.Empty<string>();
+            var resolvedBrainClass  = brainClass;
+            var resolvedBrainConfig = ParseJsonConfig(brainConfigJson);
+
+            if (!string.IsNullOrEmpty(role))
+            {
+                var roleEntry = RoleManifestLoader.FindRole(role);
+                if (roleEntry != null)
+                {
+                    // Auto-populate capabilities from role when not set on the agent
+                    if (resolvedCapabilities.Length == 0
+                        && roleEntry.capabilities != null
+                        && roleEntry.capabilities.Length > 0)
+                    {
+                        resolvedCapabilities = roleEntry.capabilities;
+                    }
+
+                    // Auto-populate brain class from role when not set on the agent.
+                    // brain_class is preferred; brain_provider is a Python-side shorthand
+                    // and cannot be resolved to a C# class, so it is ignored here.
+                    if (string.IsNullOrEmpty(resolvedBrainClass)
+                        && !string.IsNullOrEmpty(roleEntry.brain_class))
+                    {
+                        resolvedBrainClass = roleEntry.brain_class;
+                    }
+                }
+                else if (RoleManifestLoader.IsLoaded)
+                {
+                    Debug.LogWarning(
+                        $"[BiomataAgent] '{name}': Role '{role}' not found in BiomataRoles.json. " +
+                        "Regenerate the JSON after editing the roles: block in sim.yaml.");
+                }
+            }
+
             if (ownershipMode == AgentOwnershipMode.CreateAtRuntime)
             {
                 Bridge.Configure(
                     agentId:      _resolvedId,
                     agentName:    resolvedName,
                     autoRegister: autoRegister,
-                    brainClass:   string.IsNullOrEmpty(brainClass)  ? null : brainClass,
+                    brainClass:   string.IsNullOrEmpty(resolvedBrainClass)  ? null : resolvedBrainClass,
                     memoryClass:  string.IsNullOrEmpty(memoryClass) ? null : memoryClass,
-                    brainConfig:  ParseJsonConfig(brainConfigJson),
-                    memoryConfig: ParseJsonConfig(memoryConfigJson));
+                    brainConfig:  resolvedBrainConfig,
+                    memoryConfig: ParseJsonConfig(memoryConfigJson),
+                    capabilities: resolvedCapabilities.Length > 0 ? resolvedCapabilities : null);
             }
             else // BindToExisting
             {
@@ -207,8 +250,8 @@ namespace Biomata.Integration
             var collector = GetComponent<ObservationCollector>();
             if (!string.IsNullOrEmpty(role))
                 collector.SetData("role", role);
-            if (capabilities != null && capabilities.Length > 0)
-                collector.SetData("capabilities", capabilities);
+            if (resolvedCapabilities.Length > 0)
+                collector.SetData("capabilities", resolvedCapabilities);
 
             ValidateAtRuntime(_resolvedId);
         }
@@ -269,10 +312,21 @@ namespace Biomata.Integration
                     "Assign a unique ID matching the backend agent.", this);
 
             if (ownershipMode == AgentOwnershipMode.CreateAtRuntime
-                && string.IsNullOrEmpty(brainClass))
+                && string.IsNullOrEmpty(brainClass)
+                && string.IsNullOrEmpty(role))
                 Debug.LogWarning(
-                    $"[BiomataAgent] '{name}': Brain Class is required in CreateAtRuntime mode. " +
-                    "Set a fully-qualified Python brain class path.", this);
+                    $"[BiomataAgent] '{name}': Brain Class is required in CreateAtRuntime mode " +
+                    "unless a Role is set (role may supply the brain class).", this);
+
+            // Validate role name against manifest if manifest is loaded
+            if (!string.IsNullOrEmpty(role) && RoleManifestLoader.IsLoaded)
+            {
+                var roleEntry = RoleManifestLoader.FindRole(role);
+                if (roleEntry == null)
+                    Debug.LogWarning(
+                        $"[BiomataAgent] '{name}': Role '{role}' is not declared in " +
+                        "BiomataRoles.json. Check for typos or re-export the manifest.", this);
+            }
 
             if (!string.IsNullOrEmpty(agentId))
                 CheckDuplicateIdInEditor(agentId);

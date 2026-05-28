@@ -65,7 +65,7 @@ class ObservationRegistry:
         """
         result = []
         for schema, _ in self._entries.values():
-            if not schema.tags or schema.tags & capabilities:
+            if not schema.required_capabilities or schema.required_capabilities & capabilities:
                 result.append(schema)
         return result
 
@@ -113,10 +113,10 @@ class ObservationRegistry:
         """
         merged: dict[str, Any] = {}
         for schema, provider in self._entries.values():
-            if schema.tags and not (schema.tags & capabilities):
+            if schema.required_capabilities and not (schema.required_capabilities & capabilities):
                 continue
             try:
-                slice_ = provider.observe(agent_id, capabilities, world)
+                slice_ = provider.collect(agent_id, capabilities, world)
                 if slice_:
                     merged.update(slice_)
             except Exception as exc:

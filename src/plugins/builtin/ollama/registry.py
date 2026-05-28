@@ -22,7 +22,7 @@ automatically by the loader when a social block is configured.
 """
 from __future__ import annotations
 
-from src.contracts.action import ActionKind, ActionResult, ActionSchema
+from src.contracts.action import ActionHint, ActionResult, ActionSchema
 from src.engine.registry import ActionRegistry
 
 
@@ -94,7 +94,7 @@ def build_hosted_registry(social=None) -> ActionRegistry:
         schema=ActionSchema(
             name="idle",
             description="Wait or do nothing for this tick. Use when there is no clear goal.",
-            kind=ActionKind.ENGINE,
+            execution_hint=ActionHint.ENGINE,
         ),
         handler=_IdleHandler(),
     )
@@ -103,18 +103,16 @@ def build_hosted_registry(social=None) -> ActionRegistry:
         schema=ActionSchema(
             name="move",
             description="Move toward a target position or destination.",
-            kind=ActionKind.HOST,
+            execution_hint=ActionHint.HOST,
             parameters_schema={
                 "target_x":    "float? — world-space X coordinate",
                 "target_y":    "float? — world-space Y coordinate (omit for ground-level)",
                 "target_z":    "float? — world-space Z coordinate",
                 "destination": "str?   — named location (e.g. 'market', 'gate')",
             },
-            examples=[
-                {"action": "move", "target": None,
-                 "parameters": {"target_x": 5.0, "target_z": -3.0},
-                 "reasoning": "Heading toward the market stall."},
-            ],
+            example={"action": "move", "target": None,
+                     "parameters": {"target_x": 5.0, "target_z": -3.0},
+                     "reasoning": "Heading toward the market stall."},
         ),
         handler=_MoveHandler(),
     )
@@ -123,15 +121,13 @@ def build_hosted_registry(social=None) -> ActionRegistry:
         schema=ActionSchema(
             name="speak",
             description="Say something aloud to a nearby agent or to no one in particular.",
-            kind=ActionKind.HOST,
+            execution_hint=ActionHint.HOST,
             parameters_schema={
                 "text": "str — the words to say",
             },
-            examples=[
-                {"action": "speak", "target": "agent_002",
-                 "parameters": {"text": "Good day, friend!"},
-                 "reasoning": "Greeting a nearby villager."},
-            ],
+            example={"action": "speak", "target": "agent_002",
+                     "parameters": {"text": "Good day, friend!"},
+                     "reasoning": "Greeting a nearby villager."},
         ),
         handler=_SpeakHandler(),
     )
@@ -140,16 +136,14 @@ def build_hosted_registry(social=None) -> ActionRegistry:
         schema=ActionSchema(
             name="interact",
             description="Interact with an agent or object (examine, pick up, use, give).",
-            kind=ActionKind.HOST,
+            execution_hint=ActionHint.HOST,
             parameters_schema={
                 "interaction": "str? — what to do: examine | pickup | use | give",
                 "target_id":   "str? — id of the object or agent to interact with",
             },
-            examples=[
-                {"action": "interact", "target": "chest_01",
-                 "parameters": {"interaction": "open"},
-                 "reasoning": "Opening the chest near the entrance."},
-            ],
+            example={"action": "interact", "target": "chest_01",
+                     "parameters": {"interaction": "open"},
+                     "reasoning": "Opening the chest near the entrance."},
         ),
         handler=_InteractHandler(),
     )

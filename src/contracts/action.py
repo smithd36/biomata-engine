@@ -4,7 +4,9 @@ src/contracts/action.py
 Contracts for the action system. These are the stable types that flow
 between engine, world, brain, and handlers.
 
-  ActionKind           — who executes the action: HOST | ENGINE | HYBRID
+  ActionHint           — advisory LLM prompt label: HOST | ENGINE | HYBRID
+                         (no effect on dispatch — see docstring)
+  StateMutations       — typed container for the two mutation channels
   ActionValidationError — structured error from intent/parameter validation
   Intent               — what an agent wants to do (output of Brain.decide)
   ActionResult         — what actually happened (output of ActionHandler.execute)
@@ -20,12 +22,24 @@ from enum import Enum
 from typing import Any, Protocol, runtime_checkable
 
 
-# ── ActionKind ────────────────────────────────────────────────────────────────
+# ── ActionHint ────────────────────────────────────────────────────────────────
+#
+# Advisory-only label. Appends "[host]" or "[engine]" to the action description
+# in the LLM system prompt so the model understands where effects land.
+#
+# IMPORTANT: ActionHint has NO effect on dispatch, validation, or mutation
+# logic. The engine never reads execution_hint during a tick. A handler with
+# execution_hint=ENGINE can still return engine_commands; a handler with
+# execution_hint=HOST can still mutate state_mutations. The label is
+# informational for the LLM, not a behavioral constraint.
 
-class ActionKind(str, Enum):
-    HOST   = "host"    # host (Unity/renderer) executes via engine_commands; Python only packages the command
-    ENGINE = "engine"  # Python executes; may mutate world state, inventory, social graph
-    HYBRID = "hybrid"  # both: Python processing AND host commands
+class ActionHint(str, Enum):
+    HOST   = "host"    # effects delivered via engine_commands to the host (Unity)
+    ENGINE = "engine"  # effects applied by Python (mutations, social graph, etc.)
+    HYBRID = "hybrid"  # both channels; default — no label added to prompt
+
+# Backwards-compatible alias — existing code using ActionKind continues to work.
+ActionKind = ActionHint
 
 
 # ── ActionValidationError ─────────────────────────────────────────────────────
@@ -36,10 +50,10 @@ class ActionValidationError:
     Structured error produced by intent or parameter validation.
 
     Codes:
-      unknown_action   — action name not in registry
+      unknown_action    — action name not in registry
       capability_denied — agent lacks a required capability tag
-      missing_param    — required parameter absent from intent.parameters
-      type_mismatch    — parameter present but wrong Python type
+      missing_param     — required parameter absent from intent.parameters
+      type_mismatch     — parameter present but wrong Python type
     """
     code:    str
     message: str
@@ -48,7 +62,6 @@ class ActionValidationError:
 
 # ── Parameter-spec helpers ────────────────────────────────────────────────────
 
-# Maps canonical string tokens → Python types
 _PARAM_TYPE_MAP: dict[str, type] = {
     "str":     str,  "string":  str,
     "int":     int,  "integer": int,
@@ -78,13 +91,11 @@ def _parse_param_spec(spec: Any) -> tuple[type | None, bool]:
     s = spec.strip()
     optional = "optional" in s.lower()
 
-    # "float?" shorthand
     if s.endswith("?"):
         s = s[:-1].strip()
         optional = True
 
-    # Take the first whitespace/punctuation-separated token as the type name
-    token = re.split(r"[\s,;:(|]", s)[0].lower()
+    token    = re.split(r"[\s,;:(|]", s)[0].lower()
     expected = _PARAM_TYPE_MAP.get(token)
     return expected, not optional
 
@@ -121,7 +132,6 @@ def parse_intent(raw: str, valid_actions: set[str] | None = None) -> Intent:
         except (json.JSONDecodeError, ValueError):
             pass
 
-    # Keyword fallback — only match known action names, never raw words
     if valid_actions:
         for action in sorted(valid_actions, key=len, reverse=True):
             if action.replace("_", " ") in raw.lower() or action in raw.lower():
@@ -130,24 +140,57 @@ def parse_intent(raw: str, valid_actions: set[str] | None = None) -> Intent:
     return Intent(action="idle", reasoning="(parse failed)")
 
 
+# ── StateMutations ────────────────────────────────────────────────────────────
+
+@dataclass
+class StateMutations:
+    """
+    Typed container for the two Python-side mutation channels an ActionHandler
+    can request. Replaces the stringly-typed state_mutations dict.
+
+    inventory
+        Item count deltas applied by the engine after handler returns.
+        Positive = add items, negative = remove items.
+        Each item is clamped at zero (cannot go below 0).
+        Example: {"gold": 5, "torch": -1}
+
+    ext
+        Key-value pairs forwarded verbatim to StateExtension.apply_mutations().
+        Semantics are defined by the StateExtension implementation; the engine
+        does not inspect these keys. Keys not consumed by StateExtension are
+        silently ignored.
+        Example: {"stress": -10, "hunger": 2}
+    """
+    inventory: dict[str, int] = field(default_factory=dict)
+    ext:       dict[str, Any] = field(default_factory=dict)
+
+
 # ── ActionResult ──────────────────────────────────────────────────────────────
 
 @dataclass
 class ActionResult:
     success:          bool
-    outcome_text:     str                           # human-readable log line
-    state_mutations:  dict[str, Any] = field(default_factory=dict)
+    outcome_text:     str                   # human-readable log line; stored in memory
+    mutations:        StateMutations = field(default_factory=StateMutations)
     side_effects:     list[dict]     = field(default_factory=list)
     engine_commands:  list[dict]     = field(default_factory=list)
-    # side_effect shapes:
-    #   {"type": "social",  "from": id, "to": id, "delta": float}
-    #   {"type": "event",   ...}   — future extensibility
+    # side_effects shape: {"type": "social", "from": id, "to": id, "delta": float}
     #
     # engine_commands shapes (host-defined; opaque to core engine):
     #   {"type": "navigate",      "destination": {...}}
     #   {"type": "set_animation", "clip": "walk"}
     #   {"type": "play_sound",    "clip": "attack_hit"}
-    # Consumed by ExternalWorld.collect_commands() or TickSummary.engine_commands().
+    # Consumed by ExternalWorld.collect_commands() → StepResponse → Unity.
+
+    # Deprecated: use mutations=StateMutations(...) instead.
+    # Passing state_mutations= still works — it is migrated to mutations in __post_init__.
+    state_mutations:  dict[str, Any] | None = field(default=None, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.state_mutations is not None:
+            inv = self.state_mutations.get("inventory") or {}
+            ext = {k: v for k, v in self.state_mutations.items() if k != "inventory"}
+            self.mutations = StateMutations(inventory=dict(inv), ext=ext)
 
 
 # ── ActionHandler ─────────────────────────────────────────────────────────────
@@ -156,9 +199,9 @@ class ActionResult:
 class ActionHandler(Protocol):
     def execute(
         self,
-        agent:   "AgentView",           # noqa: F821
+        agent:   "AgentView",       # noqa: F821
         intent:  Intent,
-        context: "WorldContext",         # noqa: F821
+        context: "WorldContext",    # noqa: F821
     ) -> ActionResult:
         ...
 
@@ -174,21 +217,44 @@ def _render_param_spec(spec: Any) -> str:
 
 @dataclass
 class ActionSchema:
-    name:              str
-    description:       str
-    parameters_schema: dict[str, Any]  = field(default_factory=dict)
-    kind:              ActionKind       = ActionKind.HYBRID
-    tags:              frozenset[str]   = field(default_factory=frozenset)
-    examples:          list[dict]       = field(default_factory=list)
+    name:                  str
+    description:           str
+    parameters_schema:     dict[str, Any]        = field(default_factory=dict)
+    execution_hint:        ActionHint             = ActionHint.HYBRID
+    required_capabilities: frozenset[str]         = field(default_factory=frozenset)
+    example:               dict | None            = None
+    # ── Deprecated aliases ────────────────────────────────────────────────────
+    # tags=          → use required_capabilities=
+    # kind=          → use execution_hint=
+    # examples=[...] → use example={...}  (single dict, not a list)
+    tags:     frozenset[str] | None  = field(default=None, repr=False)
+    kind:     ActionHint | None      = field(default=None, repr=False)
+    examples: list[dict] | None      = field(default=None, repr=False)
+
+    def __post_init__(self) -> None:
+        # tags → required_capabilities
+        if self.tags is not None and not self.required_capabilities:
+            self.required_capabilities = self.tags
+        self.tags = self.required_capabilities
+
+        # kind → execution_hint
+        if self.kind is not None and self.execution_hint is ActionHint.HYBRID:
+            self.execution_hint = self.kind
+        self.kind = self.execution_hint
+
+        # examples → example (take first item from old list form)
+        if self.example is None and self.examples:
+            self.example = self.examples[0]
+        self.examples = [self.example] if self.example is not None else []
 
     def prompt_block(self) -> str:
-        kind_label = f"  [{self.kind.value}]" if self.kind != ActionKind.HYBRID else ""
-        lines = [f"  {self.name}: {self.description}{kind_label}"]
+        hint_label = f"  [{self.execution_hint.value}]" if self.execution_hint is not ActionHint.HYBRID else ""
+        lines      = [f"  {self.name}: {self.description}{hint_label}"]
         if self.parameters_schema:
             rendered = {k: _render_param_spec(v) for k, v in self.parameters_schema.items()}
             lines.append(f"    params: {json.dumps(rendered, separators=(',', ':'))}")
-        if self.examples:
-            ex_json = json.dumps(self.examples[0], separators=(",", ":"))
+        if self.example:
+            ex_json = json.dumps(self.example, separators=(",", ":"))
             lines.append(f"    example: {ex_json}")
         return "\n".join(lines)
 
@@ -198,11 +264,9 @@ class ActionSchema:
         """
         Validate intent parameters against this schema.
 
-        Only validates parameters whose spec can be parsed to a known type.
-        Unknown or descriptive specs (e.g. "north|south|east|west") are skipped
-        for backward compatibility.
-
-        int values are accepted where float is expected (silent coercion).
+        Only validates parameters whose spec resolves to a known type token.
+        Descriptive specs (e.g. "north|south|east|west") are skipped.
+        int is silently accepted where float is expected.
         """
         errors: list[ActionValidationError] = []
         for param_name, spec in self.parameters_schema.items():
@@ -219,9 +283,8 @@ class ActionSchema:
                 continue
 
             if expected_type is None:
-                continue  # spec not parseable — skip type check
+                continue
 
-            # Allow silent int→float coercion (LLMs often omit the decimal point)
             if expected_type is float and isinstance(value, int):
                 continue
 

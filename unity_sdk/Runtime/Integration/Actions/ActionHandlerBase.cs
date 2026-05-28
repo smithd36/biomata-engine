@@ -1,4 +1,6 @@
 using System.Collections;
+using System.Collections.Generic;
+using System.Reflection;
 using Biomata.SDK.Models;
 using UnityEngine;
 
@@ -45,6 +47,30 @@ namespace Biomata.Integration.Actions
     /// </summary>
     public abstract class ActionHandlerBase : MonoBehaviour
     {
+        /// <summary>
+        /// The action names this handler covers. Used by the manifest validator
+        /// (<see cref="Biomata.Editor.ActionManifestValidator"/>) and
+        /// <see cref="ActionManifestLoader.ValidateCoverage"/> to check coverage
+        /// without needing to instantiate the component.
+        ///
+        /// The default implementation reflects on a <c>static HandledActions</c> field
+        /// (a <c>HashSet&lt;string&gt;</c>), which is the naming convention used by all
+        /// built-in handlers (Move, Speak, Interact, Idle). Override this property in
+        /// custom handlers to declare names explicitly without relying on the convention.
+        /// </summary>
+        public virtual IReadOnlyCollection<string> DeclaredActionNames
+        {
+            get
+            {
+                var field = GetType().GetField(
+                    "HandledActions",
+                    BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
+                if (field?.GetValue(null) is IEnumerable<string> names)
+                    return new List<string>(names);
+                return System.Array.Empty<string>();
+            }
+        }
+
         /// <summary>
         /// Return <c>true</c> if this handler can execute <paramref name="action"/>.
         /// Called by <see cref="ActionExecutor"/> in component order each tick.

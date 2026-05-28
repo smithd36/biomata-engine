@@ -1,0 +1,115 @@
+{
+  "version": "1",
+  "actions": [
+    {
+      "name": "idle",
+      "description": "Do nothing this tick. Rest or wait in place.",
+      "parameters": {},
+      "required_capabilities": [],
+      "kind": "engine"
+    },
+    {
+      "name": "move",
+      "description": "Move toward a destination or in a direction.",
+      "parameters": {
+        "destination": "str",
+        "speed": "float?"
+      },
+      "required_capabilities": [],
+      "kind": "host"
+    },
+    {
+      "name": "speak",
+      "description": "Say something aloud — to a nearby agent, a group, or the world.",
+      "parameters": {
+        "message": "str",
+        "target": "str?"
+      },
+      "required_capabilities": [],
+      "kind": "hybrid"
+    },
+    {
+      "name": "interact",
+      "description": "Interact with a nearby object or agent.",
+      "parameters": {
+        "target": "str",
+        "interaction_type": "str?"
+      },
+      "required_capabilities": [],
+      "kind": "hybrid"
+    },
+    {
+      "name": "patrol",
+      "description": "Move to a named waypoint on the patrol route.",
+      "parameters": {
+        "waypoint": "str"
+      },
+      "required_capabilities": [
+        "guard",
+        "patrol"
+      ],
+      "kind": "host"
+    },
+    {
+      "name": "alert",
+      "description": "Raise an alarm about a nearby threat.",
+      "parameters": {
+        "target": "str",
+        "threat_level": "int?"
+      },
+      "required_capabilities": [
+        "authority",
+        "guard"
+      ],
+      "kind": "hybrid"
+    },
+    {
+      "name": "detain",
+      "description": "Attempt to detain a suspicious target agent.",
+      "parameters": {
+        "target": "str",
+        "reason": "str?"
+      },
+      "required_capabilities": [
+        "authority"
+      ],
+      "kind": "hybrid"
+    },
+    {
+      "name": "trade",
+      "description": "Offer or accept a trade with a nearby agent.",
+      "parameters": {
+        "target": "str",
+        "offer": "str",
+        "request": "str?"
+      },
+      "required_capabilities": [
+        "merchant",
+        "trade"
+      ],
+      "kind": "hybrid"
+    },
+    {
+      "name": "greet",
+      "description": "Greet a nearby agent to build social rapport.",
+      "parameters": {
+        "target": "str"
+      },
+      "required_capabilities": [
+        "social"
+      ],
+      "kind": "hybrid"
+    },
+    {
+      "name": "follow",
+      "description": "Follow a target agent across the scene.",
+      "parameters": {
+        "target": "str"
+      },
+      "required_capabilities": [
+        "social"
+      ],
+      "kind": "host"
+    }
+  ]
+}

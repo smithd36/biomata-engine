@@ -428,6 +428,8 @@ namespace Biomata.SDK.Transport
                 p["memory_class"]  = reg.MemoryClass;
             if (reg.MemoryConfig != null)
                 p["memory_config"] = JsonHelpers.ToToken(reg.MemoryConfig);
+            if (reg.Capabilities != null && reg.Capabilities.Length > 0)
+                p["capabilities"] = new JArray((object[])reg.Capabilities);
 
             var r = await RequestAsync(M_REGISTER, p, ct);
             EnsureSuccess(r, $"RegisterAgent({reg.AgentId})");

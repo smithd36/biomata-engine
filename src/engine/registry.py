@@ -59,7 +59,7 @@ class ActionRegistry:
         """
         result = []
         for schema, _ in self._entries.values():
-            if not schema.tags or schema.tags & capabilities:
+            if not schema.required_capabilities or schema.required_capabilities & capabilities:
                 result.append(schema)
         return result
 
@@ -88,8 +88,8 @@ class ActionRegistry:
 
         schema, _ = entry
 
-        if schema.tags and not (schema.tags & capabilities):
-            allowed = sorted(schema.tags)
+        if schema.required_capabilities and not (schema.required_capabilities & capabilities):
+            allowed = sorted(schema.required_capabilities)
             have    = sorted(capabilities) or ["none"]
             return [ActionValidationError(
                 code    = "capability_denied",

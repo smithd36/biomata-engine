@@ -1,11 +1,10 @@
 """
 src/contracts/observation.py
 ────────────────────────────────
-Contracts for the observation system. Mirror of the action contract
-architecture — domain-agnostic, fully user-extensible.
+Contracts for the observation system.
 
-  ObservationSchema   — documents one named observation slice
-  ObservationProvider — produces observation data for an agent each tick
+  ObservationSchema    — documents one named observation slice
+  ObservationProvider  — produces observation data for an agent each tick
 """
 from __future__ import annotations
 
@@ -17,7 +16,6 @@ from typing import Any, Protocol, runtime_checkable
 # ── ObservationSchema ─────────────────────────────────────────────────────────
 
 def _render_field_spec(spec: Any) -> str:
-    """Render a payload schema value as a human/LLM-readable string."""
     if isinstance(spec, type):
         return spec.__name__
     return str(spec)
@@ -39,17 +37,25 @@ class ObservationSchema:
         Maps field names to type annotations (Python types or descriptive strings).
         Rendered into the prompt for LLM context. Not enforced at runtime —
         observations come from trusted provider code, not LLMs.
-    tags
-        Capability tags. Empty frozenset = universal (every agent sees this).
+    required_capabilities
+        Capability gate. Empty frozenset = universal (every agent sees this).
         Non-empty = only agents whose capabilities intersect these tags see it.
+        Same semantics as ActionSchema.required_capabilities.
     examples
         Concrete example dicts shown in the prompt. examples[0] is used.
     """
-    name:           str
-    description:    str
-    payload_schema: dict[str, Any]  = field(default_factory=dict)
-    tags:           frozenset[str]  = field(default_factory=frozenset)
-    examples:       list[dict]      = field(default_factory=list)
+    name:                  str
+    description:           str
+    payload_schema:        dict[str, Any]        = field(default_factory=dict)
+    required_capabilities: frozenset[str]         = field(default_factory=frozenset)
+    examples:              list[dict]             = field(default_factory=list)
+    # Deprecated: use required_capabilities=
+    tags:                  frozenset[str] | None  = field(default=None, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.tags is not None and not self.required_capabilities:
+            self.required_capabilities = self.tags
+        self.tags = self.required_capabilities
 
     def prompt_block(self) -> str:
         lines = [f"  {self.name}: {self.description}"]
@@ -82,20 +88,11 @@ class ObservationProvider(Protocol):
     --------------------------------
     engine identity > world.observe() > ObservationRegistry providers
 
-    Concretely, the engine unconditionally overwrites the following keys after
-    all providers and the world have contributed. Providers MUST NOT emit these
-    keys — any value they set will be silently discarded:
-
-        agent_id      — the acting agent's unique identifier
-        agent_name    — human-readable name of the acting agent
-        inventory     — current item counts (engine-managed copy)
-        state_ext     — snapshot of the agent's StateExtension (or {})
-        state_advice  — urgent advice string from StateExtension (or "")
-        state_str     — full prompt string from StateExtension (or "")
-        nearby_agents — list of visible AgentView dicts; filled by engine
-                        from VisibilityWorld if world did not supply it
+    Reserved keys (engine always overwrites — providers must not emit these):
+        agent_id, agent_name, inventory, state_ext, state_advice,
+        state_str, nearby_agents
     """
-    def observe(
+    def collect(
         self,
         agent_id:     str,
         capabilities: frozenset[str],
