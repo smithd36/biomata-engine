@@ -12,6 +12,10 @@ namespace Biomata.Integration.Actions
     /// Target is extracted from engine_commands in priority order:
     ///   1. <c>{ "type": "navigate", "x": …, "y": …, "z": … }</c> in EngineCommands
     ///   2. <c>target_x</c> / <c>target_z</c> keys in action Parameters
+    ///   3. <c>destination</c> string in the navigate command, resolved to a tagged POI by name
+    ///
+    /// For path 3, tag POI GameObjects with <see cref="poiTag"/> (default: <c>"BiomataPOI"</c>).
+    /// The cache is built in Awake — call <see cref="RefreshPOICache"/> if POIs spawn at runtime.
     ///
     /// Override <see cref="ExtractTarget"/> to drive a NavMeshAgent, Rigidbody, or
     /// animation root-motion system instead of raw Transform movement.
@@ -22,6 +26,34 @@ namespace Biomata.Integration.Actions
         [SerializeField] private float moveSpeed        = 3.5f;
         [SerializeField] private float rotateSpeed      = 360f;
         [SerializeField] private float arrivalThreshold = 0.15f;
+
+        [Tooltip("Unity tag assigned to POI GameObjects. Must match POIObservationProvider.")]
+        [SerializeField] private string poiTag = "BiomataPOI";
+
+        private Dictionary<string, Transform> _poiCache;
+
+        private void Awake() => RefreshPOICache();
+
+        /// <summary>
+        /// Re-scan the scene and rebuild the POI name→position cache.
+        /// Call when POIs are spawned or destroyed at runtime.
+        /// </summary>
+        public void RefreshPOICache()
+        {
+            _poiCache = new Dictionary<string, Transform>();
+            if (string.IsNullOrEmpty(poiTag)) return;
+            try
+            {
+                foreach (var go in GameObject.FindGameObjectsWithTag(poiTag))
+                    _poiCache[go.name.ToLowerInvariant()] = go.transform;
+            }
+            catch (UnityException)
+            {
+                Debug.LogWarning(
+                    $"[MoveActionHandler] Tag '{poiTag}' does not exist. " +
+                    "Add it in Edit → Project Settings → Tags & Layers.", this);
+            }
+        }
 
         /// <summary>Configure movement parameters at runtime (call immediately after AddComponent).</summary>
         public void Configure(float moveSpeed, float arrivalThreshold = 0.15f, float rotateSpeed = 360f)
@@ -71,6 +103,7 @@ namespace Biomata.Integration.Actions
         /// </summary>
         protected virtual Vector3? ExtractTarget(AgentDecisionResult decision)
         {
+            // Path 1: explicit coordinates in the navigate engine command.
             foreach (var cmd in decision.EngineCommands)
             {
                 if (!TryGetStr(cmd, "type", out var type) || type != "navigate") continue;
@@ -81,11 +114,29 @@ namespace Biomata.Integration.Actions
                 }
             }
 
+            // Path 2: explicit coordinates in action parameters.
             if (TryGetFloat(decision.Parameters, "target_x", out var px) &&
                 TryGetFloat(decision.Parameters, "target_z", out var pz))
             {
                 TryGetFloat(decision.Parameters, "target_y", out var py);
                 return new Vector3(px, py, pz);
+            }
+
+            // Path 3: destination name resolved via POI cache.
+            foreach (var cmd in decision.EngineCommands)
+            {
+                if (!TryGetStr(cmd, "type", out var type) || type != "navigate") continue;
+                if (!TryGetStr(cmd, "destination", out var dest)) continue;
+
+                var key = dest.ToLowerInvariant();
+                if (_poiCache != null && _poiCache.TryGetValue(key, out var t))
+                    return t.position;
+
+                Debug.LogWarning(
+                    $"[MoveActionHandler] '{gameObject.name}': destination '{dest}' not found " +
+                    $"in POI cache (tag '{poiTag}'). Call RefreshPOICache() if the POI was " +
+                    "spawned after Awake, or check the GameObject name matches the brain's output.",
+                    this);
             }
 
             return null;
