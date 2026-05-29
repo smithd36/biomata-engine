@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Biomata.Integration.Actions;
 using Biomata.Integration.Observations;
+using Biomata.Integration.Simulation;
 using Biomata.SDK.Models;
 using Newtonsoft.Json.Linq;
 using UnityEngine;

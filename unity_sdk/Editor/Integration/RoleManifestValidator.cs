@@ -1,7 +1,6 @@
 #if UNITY_EDITOR
 using System.Collections.Generic;
 using Biomata.Integration;
-using Biomata.Integration.Agents;
 using Biomata.Integration.Simulation;
 using UnityEditor;
 using UnityEngine;

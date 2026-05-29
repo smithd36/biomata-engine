@@ -38,7 +38,7 @@ namespace Biomata.Integration.Observations
         [SerializeField] private bool includeDistances = false;
 
         // Reused per-tick to avoid allocations.
-        private readonly List<(float sqrDist, string agentId)> _candidates = new();
+        private readonly List<(float sqrDist, string agentId, string agentName)> _candidates = new();
 
         public override void Populate(Dictionary<string, object> observation)
         {
@@ -54,18 +54,27 @@ namespace Biomata.Integration.Observations
                 if (bridge == null || bridge.transform == transform) continue;
                 float sqrDist = (bridge.transform.position - pos).sqrMagnitude;
                 if (sqrDist <= sqrRadius)
-                    _candidates.Add((sqrDist, bridge.AgentId));
+                    _candidates.Add((sqrDist, bridge.AgentId, bridge.AgentName));
             }
 
             // Sort nearest-first so the brain sees the most relevant agents at the front.
             _candidates.Sort(static (a, b) => a.sqrDist.CompareTo(b.sqrDist));
 
-            int count = Mathf.Min(_candidates.Count, maxAgents);
-            var ids   = new List<string>(count);
+            int count   = Mathf.Min(_candidates.Count, maxAgents);
+            var entries = new List<Dictionary<string, object>>(count);
             for (int i = 0; i < count; i++)
-                ids.Add(_candidates[i].agentId);
+            {
+                var entry = new Dictionary<string, object>
+                {
+                    ["id"]   = _candidates[i].agentId,
+                    ["name"] = _candidates[i].agentName,
+                };
+                if (includeDistances && i == 0)
+                    entry["distance"] = (double)Mathf.Sqrt(_candidates[i].sqrDist);
+                entries.Add(entry);
+            }
 
-            observation["nearby_agents"]      = ids;
+            observation["nearby_agents"]      = entries;
             observation["nearby_agent_count"] = count;
 
             if (count > 0)

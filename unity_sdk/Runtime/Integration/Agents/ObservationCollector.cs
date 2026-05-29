@@ -20,6 +20,7 @@ namespace Biomata.Integration
     {
         private ObservationProviderBase[] _providers;
         private readonly Dictionary<string, object> _manual = new Dictionary<string, object>();
+        private readonly List<Dictionary<string, object>> _pendingMessages = new();
 
         private void Awake() => _providers = GetComponents<ObservationProviderBase>();
 
@@ -37,6 +38,22 @@ namespace Biomata.Integration
 
         /// <summary>Remove all manually injected keys.</summary>
         public void ClearAllData() => _manual.Clear();
+
+        /// <summary>
+        /// Queue an incoming speech message from another agent.
+        /// Queued messages are written as <c>incoming_messages</c> on the next
+        /// <see cref="Collect"/> call and then cleared so they appear exactly once.
+        /// Called by <see cref="Actions.SpeakActionHandler"/> when this agent is the target.
+        /// </summary>
+        public void DeliverMessage(string fromId, string fromName, string text)
+        {
+            _pendingMessages.Add(new Dictionary<string, object>
+            {
+                ["from"]      = fromId,
+                ["from_name"] = fromName,
+                ["text"]      = text,
+            });
+        }
 
         // ── Collection ────────────────────────────────────────────────────────────
 
@@ -64,6 +81,12 @@ namespace Biomata.Integration
 
             foreach (var kv in _manual)
                 obs[kv.Key] = kv.Value;
+
+            if (_pendingMessages.Count > 0)
+            {
+                obs["incoming_messages"] = new List<Dictionary<string, object>>(_pendingMessages);
+                _pendingMessages.Clear();
+            }
 
             return obs;
         }

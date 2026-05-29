@@ -38,7 +38,11 @@ from src.contracts.observation import ObservationSchema
 from src.contracts.world import AgentView
 
 
-_DEFAULT_SYSTEM_PROMPT = "You are an autonomous participant in a simulated environment."
+_DEFAULT_SYSTEM_PROMPT = (
+    "You are an autonomous participant in a simulated environment. "
+    "When you receive a message, respond directly to its content — do not re-introduce yourself "
+    "or repeat things you have already said. Build on the conversation."
+)
 
 _SYSTEM_TEMPLATE = """\
 {system_prompt}
@@ -59,6 +63,7 @@ _ENGINE_KEYS: frozenset[str] = frozenset({
     "agent_id", "agent_name", "inventory",
     "state_ext", "state_advice", "state_str",
     "nearby_agents",
+    "incoming_messages",   # rendered in its own MESSAGES RECEIVED section
 })
 
 # Redundant derived keys never useful to show an LLM.
@@ -241,13 +246,33 @@ class OllamaLLMBrain:
             if perception_lines else ""
         )
 
+        # ── Incoming messages (speech directed at this agent) ─────────────────
+        incoming = obs.get("incoming_messages", [])
+        if incoming and isinstance(incoming, list):
+            msg_lines = []
+            for m in incoming:
+                if not isinstance(m, dict):
+                    continue
+                from_name = m.get("from_name") or m.get("from", "unknown")
+                text = m.get("text", "")
+                msg_lines.append(f'  {from_name} says: "{text}"')
+            messages_block = (
+                "=== MESSAGES RECEIVED ===\n" + "\n".join(msg_lines)
+                if msg_lines else None
+            )
+        else:
+            messages_block = None
+
         # ── Memories (context-owned) ───────────────────────────────────────────
         memories_block = f"=== YOUR MEMORIES ===\n{context.memory or 'No memories yet.'}"
 
-        sections = [character_block, state_block, nearby_block]
+        # Memories before the incoming message so the LLM sees what it already
+        # said before deciding how to respond — prevents repetition loops.
+        sections = [character_block, state_block, memories_block, nearby_block]
+        if messages_block:
+            sections.append(messages_block)
         if perception_block:
             sections.append(perception_block)
-        sections.append(memories_block)
         sections.append("Respond with a JSON object only.")
 
         return "\n\n".join(sections)

@@ -150,6 +150,18 @@ class AgentRuntime:
             obs_str = " ".join(parts)
         else:
             obs_str = str(loc)
+
+        incoming = observation.get("incoming_messages")
+        if incoming and isinstance(incoming, list):
+            heard_parts = []
+            for m in incoming:
+                if isinstance(m, dict):
+                    name = m.get("from_name") or m.get("from", "?")
+                    text = str(m.get("text", ""))[:60]
+                    heard_parts.append(f'{name}: "{text}"')
+            if heard_parts:
+                obs_str = obs_str + " | heard: " + "; ".join(heard_parts)
+
         agent.memory.store(tick, obs_str, intent, result.outcome_text)
 
         # 8. Emit event

@@ -62,10 +62,45 @@ namespace Biomata.Integration.Actions
 
             OnSpeak?.Invoke(bridge.AgentId, text);
 
+            RelayToTarget(decision, bridge, text);
+
             yield return new WaitForSeconds(speechDuration);
 
             IsSpeaking    = false;
             CurrentSpeech = null;
+        }
+
+        private static void RelayToTarget(AgentDecisionResult decision, UnityAgentBridge bridge, string text)
+        {
+            var manager = UnitySimulationManager.Instance;
+            if (manager == null) return;
+
+            // Extract target agent ID from the speak engine command, if set.
+            string targetId = null;
+            foreach (var cmd in decision.EngineCommands)
+            {
+                if (cmd.TryGetValue("type", out var t) && t?.ToString() == "speak"
+                    && cmd.TryGetValue("target", out var tgt) && tgt != null)
+                {
+                    var id = tgt.ToString();
+                    if (!string.IsNullOrEmpty(id))
+                        targetId = id;
+                    break;
+                }
+            }
+
+            foreach (var b in manager.RegisteredBridges)
+            {
+                if (b == null || b.AgentId == bridge.AgentId) continue;
+
+                // When a target is specified, deliver only to that agent.
+                // When null (LLM didn't set target), broadcast to all nearby agents.
+                if (targetId != null && b.AgentId != targetId) continue;
+
+                b.GetComponent<ObservationCollector>()?.DeliverMessage(bridge.AgentId, bridge.AgentName, text);
+
+                if (targetId != null) break; // targeted delivery — stop after first match
+            }
         }
 
         private static string ExtractText(AgentDecisionResult decision)
