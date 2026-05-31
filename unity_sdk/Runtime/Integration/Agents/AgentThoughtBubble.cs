@@ -69,5 +69,15 @@ namespace Biomata.Integration
 
             SetText(text);
         }
+
+        private void LateUpdate()
+        {
+            if (Camera.main == null)
+                return;
+
+            transform.LookAt(Camera.main.transform);
+
+            transform.Rotate(0f, 180f, 0f);
+        }
     }
 }
