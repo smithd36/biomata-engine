@@ -214,8 +214,8 @@ namespace Biomata.Integration
                 else if (RoleManifestLoader.IsLoaded)
                 {
                     Debug.LogWarning(
-                        $"[BiomataAgent] '{name}': Role '{role}' not found in BiomataRoles.json. " +
-                        "Regenerate the JSON after editing the roles: block in sim.yaml.");
+                        $"[BiomataAgent] '{name}': Role '{role}' not found in roles manifest. " +
+                        "Check that the role is declared in the backend sim.yaml.");
                 }
             }
 
@@ -225,11 +225,12 @@ namespace Biomata.Integration
                     agentId:      _resolvedId,
                     agentName:    resolvedName,
                     autoRegister: autoRegister,
-                    brainClass:   string.IsNullOrEmpty(resolvedBrainClass)  ? null : resolvedBrainClass,
+                    brainClass:   resolvedBrainClass,   // pass "" explicitly so bridge default doesn't mask role expansion
                     memoryClass:  string.IsNullOrEmpty(memoryClass) ? null : memoryClass,
                     brainConfig:  resolvedBrainConfig,
                     memoryConfig: ParseJsonConfig(memoryConfigJson),
-                    capabilities: resolvedCapabilities.Length > 0 ? resolvedCapabilities : null);
+                    capabilities: resolvedCapabilities.Length > 0 ? resolvedCapabilities : null,
+                    role:         string.IsNullOrEmpty(role) ? null : role);
             }
             else // BindToExisting
             {

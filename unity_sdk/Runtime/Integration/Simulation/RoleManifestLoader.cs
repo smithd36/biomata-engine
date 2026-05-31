@@ -1,51 +1,42 @@
 using System;
 using System.Linq;
+using Biomata.SDK.Models;
 using UnityEngine;
 
 namespace Biomata.Integration.Simulation
 {
-    // ── Wire types (match BiomataRoles.json shape) ────────────────────────────
-
-    [Serializable]
-    public class RoleEntry
-    {
-        public string   name;
-        public string[] capabilities;
-        public string[] observations;
-        public string   brain_provider; // Python-side provider shorthand; advisory for Unity
-        public string   brain_class;    // Fully-qualified Python class path, if any
-    }
-
-    [Serializable]
-    public class RolesData
-    {
-        public string     version;
-        public RoleEntry[] roles;
-    }
-
     /// <summary>
-    /// Loads BiomataRoles.json from a Unity Resources folder.
+    /// Provides role definitions to the Unity integration layer.
     ///
-    /// The JSON is generated from the <c>roles:</c> block in sim.yaml:
-    ///   python -c "
-    ///     from src.config.schema import SimConfig
-    ///     from src.config.roles import export_roles_json
-    ///     import yaml
-    ///     cfg = SimConfig.model_validate(yaml.safe_load(open('sim.yaml')))
-    ///     export_roles_json(cfg.roles, 'Assets/Resources/BiomataRoles.json')
-    ///   "
+    /// Primary source: the <c>roles.list</c> WebSocket RPC, which the
+    /// <see cref="UnitySimulationManager"/> calls on connect and feeds here via
+    /// <see cref="Populate"/>. No static JSON file is required.
     ///
-    /// Re-run whenever you add, remove, or rename a role in sim.yaml.
-    /// Commit the generated file alongside your Unity project.
+    /// Fallback: if a <c>BiomataRoles.json</c> asset exists in a Resources folder it
+    /// is loaded as a development convenience (e.g. when running in the editor without
+    /// a live backend). The RPC result always takes precedence over the JSON.
     /// </summary>
     public static class RoleManifestLoader
     {
         private const string ResourceName = "BiomataRoles";
         private static RolesData _cache;
+        private static bool      _fromRpc;   // true when populated via Populate()
 
         /// <summary>
-        /// Load roles from Resources. Returns null if the file is not found.
-        /// Result is cached after first call; call <see cref="ClearCache"/> to force reload.
+        /// Seed the manifest from the <c>roles.list</c> RPC response.
+        /// Called by <see cref="UnitySimulationManager"/> immediately after connect.
+        /// Supersedes any previously loaded JSON fallback.
+        /// </summary>
+        public static void Populate(RolesData data)
+        {
+            _cache  = data;
+            _fromRpc = true;
+        }
+
+        /// <summary>
+        /// Load roles. Returns the RPC-populated data when available; falls back to
+        /// Resources/<c>BiomataRoles.json</c> for editor / offline use.
+        /// Returns null if neither source is available.
         /// </summary>
         public static RolesData Load()
         {
@@ -89,6 +80,10 @@ namespace Biomata.Integration.Simulation
         }
 
         /// <summary>Reset the in-memory cache. Useful in play-mode tests or after re-import.</summary>
-        public static void ClearCache() => _cache = null;
+        public static void ClearCache()
+        {
+            _cache   = null;
+            _fromRpc = false;
+        }
     }
 }

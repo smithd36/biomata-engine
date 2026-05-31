@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
+using Biomata.Integration.Simulation;
 using Biomata.SDK;
 using Biomata.SDK.Models;
 using UnityEngine;
@@ -223,6 +224,21 @@ namespace Biomata.Integration
                 Client = null;
                 yield break;
             }
+
+            // Fetch role definitions from the backend before firing OnConnected so that
+            // agents can resolve role defaults (capabilities, brain class) synchronously
+            // during their registration coroutines.
+            var rolesTask = Client.Roles.ListAsync(_cts.Token);
+            while (!rolesTask.IsCompleted)
+                yield return null;
+
+            if (!rolesTask.IsFaulted && rolesTask.Result != null)
+                RoleManifestLoader.Populate(rolesTask.Result);
+            else if (rolesTask.IsFaulted)
+                Debug.LogWarning(
+                    "[Biomata] roles.list RPC failed — restart the backend to pick up the latest sim.yaml, " +
+                    "then reconnect. Agents that rely on role defaults will not register until the manifest " +
+                    "is available. Error: " + rolesTask.Exception?.GetBaseException().Message);
 
             // Subscribe to real-time events before the first tick.
             Client.Events.OnAll(ev => OnSimulationEvent?.Invoke(ev));

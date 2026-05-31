@@ -11,7 +11,7 @@ namespace Biomata.Editor
     /// Editor validator for role declarations.
     ///
     /// Checks:
-    ///   1. BiomataRoles.json exists and loads correctly.
+    ///   1. The roles manifest is loaded (from the backend RPC or a fallback JSON).
     ///   2. Every <see cref="BiomataAgent"/> in the project with a non-empty role
     ///      references a role declared in the manifest.
     ///   3. (Advisory) Roles that declare observation requirements — warns when
@@ -20,14 +20,8 @@ namespace Biomata.Editor
     ///
     /// Run from the menu: <b>Biomata &gt; Validate Roles</b>
     ///
-    /// To regenerate BiomataRoles.json after editing sim.yaml roles:
-    ///   python -c "
-    ///     from src.config.schema import SimConfig
-    ///     from src.config.roles import export_roles_json
-    ///     import yaml
-    ///     cfg = SimConfig.model_validate(yaml.safe_load(open('sim.yaml')))
-    ///     export_roles_json(cfg.roles, 'Assets/Resources/BiomataRoles.json')
-    ///   "
+    /// The manifest is populated automatically on connect via the <c>roles.list</c> RPC.
+    /// For offline editor validation, place a <c>BiomataRoles.json</c> in a Resources folder.
     /// </summary>
     public static class RoleManifestValidator
     {
@@ -40,16 +34,13 @@ namespace Biomata.Editor
             if (manifest == null)
             {
                 EditorUtility.DisplayDialog(
-                    "Biomata — Roles Manifest Not Found",
-                    "BiomataRoles.json was not found in any Resources folder.\n\n" +
-                    "Generate it from your sim.yaml roles: block:\n\n" +
-                    "  python -c \"\n" +
-                    "    from src.config.schema import SimConfig\n" +
-                    "    from src.config.roles import export_roles_json\n" +
-                    "    import yaml\n" +
-                    "    cfg = SimConfig.model_validate(yaml.safe_load(open('sim.yaml')))\n" +
-                    "    export_roles_json(cfg.roles, 'Assets/Resources/BiomataRoles.json')\n" +
-                    "  \"",
+                    "Biomata — Roles Manifest Not Available",
+                    "No roles manifest is loaded.\n\n" +
+                    "The manifest is fetched automatically from the backend on connect " +
+                    "(roles.list RPC). For offline editor validation, place a " +
+                    "BiomataRoles.json file in any Resources folder.\n\n" +
+                    "Enter Play mode with the backend running to populate the manifest, " +
+                    "then re-run this validator.",
                     "OK");
                 return;
             }

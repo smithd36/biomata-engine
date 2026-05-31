@@ -244,6 +244,8 @@ class ConnectionHandler:
             return self._handle_agent_unregister(params)
         if method == Method.AGENT_LIST:
             return self._handle_agent_list()
+        if method == Method.ROLES_LIST:
+            return self._handle_roles_list()
         raise ProtocolError(f"unknown method '{method}'", ErrorCode.METHOD_NOT_FOUND)
 
     # ── Method handlers ───────────────────────────────────────────────────────
@@ -542,6 +544,25 @@ class ConnectionHandler:
             for a in self._sim.agents
         ]
         return {"agents": agents, "count": len(agents)}
+
+    def _handle_roles_list(self) -> dict[str, Any]:
+        from src.config.roles import BRAIN_PROVIDERS
+        role_list = []
+        for name, rc in self._sim.roles.items():
+            brain_provider = None
+            brain_class    = None
+            if rc.brain is not None:
+                brain_provider = rc.brain.provider or None
+                brain_class    = rc.brain.class_   or None
+                if brain_class is None and brain_provider is not None:
+                    brain_class = BRAIN_PROVIDERS.get(brain_provider.lower().strip())
+            role_list.append({
+                "name":           name,
+                "capabilities":   list(rc.capabilities),
+                "brain_provider": brain_provider,
+                "brain_class":    brain_class,
+            })
+        return {"version": "1", "roles": role_list, "count": len(role_list)}
 
     # ── Event subscription ────────────────────────────────────────────────────
 

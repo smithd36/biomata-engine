@@ -67,6 +67,7 @@ _CAPABILITIES_HOST_DRIVEN: Final[list[str]] = [
     "agent.register",
     "agent.unregister",
     "agent.list",
+    "roles.list",
 ]
 _CAPABILITIES_AUTONOMOUS: Final[list[str]] = [
     "pause",
@@ -80,6 +81,7 @@ _CAPABILITIES_AUTONOMOUS: Final[list[str]] = [
     "agent.register",
     "agent.unregister",
     "agent.list",
+    "roles.list",
 ]
 
 
@@ -114,11 +116,14 @@ class Method:
     AGENT_UNREGISTER = "agent.unregister"
     AGENT_LIST       = "agent.list"
 
+    ROLES_LIST = "roles.list"
+
     ALL: tuple[str, ...] = (
         HEALTH_CHECK, REGISTER_AGENT, REMOVE_AGENT, SEND_OBSERVATION,
         TICK, PAUSE, RESUME, SNAPSHOT, RESTORE,
         SUBSCRIBE_EVENTS, UNSUBSCRIBE_EVENTS,
         AGENT_REGISTER, AGENT_UNREGISTER, AGENT_LIST,
+        ROLES_LIST,
     )
 
 

@@ -295,4 +295,5 @@ def _build_simulation(cfg: dict, base_dir: str = ".") -> "Simulation":  # noqa: 
         config       = sim_cfg,
         social       = social,
         obs_registry = obs_registry,
+        roles        = dict(sim.roles),
     )

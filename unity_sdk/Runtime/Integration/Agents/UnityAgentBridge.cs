@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Biomata.Integration.Simulation;
 using Biomata.SDK.Models;
 using UnityEngine;
 
@@ -58,7 +59,8 @@ namespace Biomata.Integration
             string memoryClass  = null,
             Dictionary<string, object> brainConfig  = null,
             Dictionary<string, object> memoryConfig = null,
-            string[] capabilities = null)
+            string[] capabilities = null,
+            string role = null)
         {
             this.agentId      = agentId;
             this.agentName    = string.IsNullOrEmpty(agentName) ? agentId : agentName;
@@ -68,6 +70,7 @@ namespace Biomata.Integration
             if (capabilities  != null) _capabilities    = capabilities;
             _brainConfig  = brainConfig;
             _memoryConfig = memoryConfig;
+            _role         = role;
         }
 
         // ── Events ────────────────────────────────────────────────────────────────
@@ -105,6 +108,7 @@ namespace Biomata.Integration
         private Dictionary<string, object> _brainConfig;
         private Dictionary<string, object> _memoryConfig;
         private string[]                   _capabilities;
+        private string                     _role;
 
         // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -183,15 +187,46 @@ namespace Biomata.Integration
         {
             if (_manager?.Client == null) yield break;
 
+            // Lazy role expansion: BiomataAgent.Awake() runs before the WebSocket
+            // connection opens, so the roles manifest may not have been populated yet.
+            // By the time RegisterCoroutine fires (after OnConnected), the manifest is
+            // seeded from the roles.list RPC — resolve any still-missing values now.
+            var resolvedBrainClass   = brainClass;
+            var resolvedCapabilities = _capabilities;
+            if (!string.IsNullOrEmpty(_role))
+            {
+                var entry = RoleManifestLoader.FindRole(_role);
+                if (entry != null)
+                {
+                    if (string.IsNullOrEmpty(resolvedBrainClass) && !string.IsNullOrEmpty(entry.brain_class))
+                        resolvedBrainClass = entry.brain_class;
+                    if ((resolvedCapabilities == null || resolvedCapabilities.Length == 0)
+                        && entry.capabilities?.Length > 0)
+                    {
+                        resolvedCapabilities = entry.capabilities;
+                        _collector?.SetData("capabilities", resolvedCapabilities);
+                    }
+                }
+            }
+
+            if (string.IsNullOrEmpty(resolvedBrainClass))
+            {
+                var hint = string.IsNullOrEmpty(_role)
+                    ? "Set Brain Class on the agent or assign a role that declares one."
+                    : $"Role '{_role}' was not found in the manifest — restart the backend so roles.list returns the current sim.yaml roles, then reconnect.";
+                Debug.LogError($"[Biomata] Agent '{agentId}': no brain class resolved. {hint}");
+                yield break;
+            }
+
             var reg = new AgentRegistration
             {
                 AgentId      = agentId,
                 AgentName    = agentName,
-                BrainClass   = brainClass,
+                BrainClass   = resolvedBrainClass,
                 MemoryClass  = string.IsNullOrEmpty(memoryClass) ? null : memoryClass,
                 BrainConfig  = _brainConfig,
                 MemoryConfig = _memoryConfig,
-                Capabilities = _capabilities is { Length: > 0 } ? _capabilities : null,
+                Capabilities = resolvedCapabilities is { Length: > 0 } ? resolvedCapabilities : null,
             };
 
             var task = _manager.Client.Agents.RegisterAsync(reg);

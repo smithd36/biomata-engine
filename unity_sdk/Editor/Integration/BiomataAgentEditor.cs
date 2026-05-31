@@ -190,9 +190,8 @@ namespace Biomata.Integration.Editor
                         if (RoleManifestLoader.FindRole(roleName) == null)
                         {
                             EditorGUILayout.HelpBox(
-                                $"Role '{roleName}' is not in BiomataRoles.json. " +
-                                "Check the spelling or regenerate the manifest:\n" +
-                                "Biomata > Validate Roles",
+                                $"Role '{roleName}' is not in the roles manifest. " +
+                                "Check the spelling or run Biomata > Validate Roles.",
                                 MessageType.Error);
                             anyNotice = true;
                         }
@@ -200,8 +199,9 @@ namespace Biomata.Integration.Editor
                     else
                     {
                         EditorGUILayout.HelpBox(
-                            "BiomataRoles.json not found in Resources — role name cannot be validated.\n" +
-                            "Place the file in a Resources folder.",
+                            "Roles manifest not loaded — role name cannot be validated in the editor.\n" +
+                            "Enter Play mode to fetch roles from the backend, or add a BiomataRoles.json " +
+                            "to a Resources folder for offline validation.",
                             MessageType.Info);
                         anyNotice = true;
                     }

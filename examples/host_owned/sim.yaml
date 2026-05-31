@@ -44,4 +44,20 @@ world:
 registry:
   class: src.plugins.builtin.ollama.registry.build_hosted_registry
 
+roles:
+  Villager:
+    capabilities: [social]
+    brain:
+      provider: ollama          # ollama = src.plugins.builtin.ollama.brain.OllamaLLMBrain
+    observations:
+      - position
+      - nearby_agents
+
+  BusinessVillager:
+    capabilities: [trade, social]
+    brain:
+      provider: ollama          # ollama = src.plugins.builtin.ollama.brain.OllamaLLMBrain
+    observations:
+      - position
+      - nearby_agents
 # No agents block. Unity calls agent.register (or register_agent) for each NPC.

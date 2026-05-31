@@ -41,6 +41,7 @@ namespace Biomata.SDK.Transport
         Task<string>        ResumeAsync(CancellationToken ct = default);
         Task<SnapshotData>  SnapshotAsync(CancellationToken ct = default);
         Task<int>           RestoreAsync(byte[] snapshotData, CancellationToken ct = default);
+        Task<RolesData>     RolesListAsync(CancellationToken ct = default);
 
         // ── Event stream ──────────────────────────────────────────────────────
 

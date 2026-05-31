@@ -112,6 +112,7 @@ class Simulation:
         config:       SimulationConfig       | None = None,
         social:       Any                   | None = None,
         obs_registry: ObservationRegistry   | None = None,
+        roles:        dict                  | None = None,
     ):
         self.agents       = agents
         self.world        = world
@@ -121,6 +122,7 @@ class Simulation:
         self.config       = config       or SimulationConfig()
         self.social       = social       # SocialSystem | None — held for snapshot support
         self.obs_registry = obs_registry # ObservationRegistry | None
+        self.roles        = roles        or {}  # RoleConfig dict from sim.yaml, keyed by name
 
         # Canonical seeded RNG — injected into the world so handlers use context.rng
         self.rng = random.Random(self.config.seed)

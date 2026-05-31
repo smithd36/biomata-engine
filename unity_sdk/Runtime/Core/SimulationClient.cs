@@ -55,6 +55,9 @@ namespace Biomata.SDK
         /// <summary>Save / restore / persist simulation state.</summary>
         public SnapshotClient    Snapshots     { get; private set; }
 
+        /// <summary>Retrieve role definitions declared in the backend sim.yaml.</summary>
+        public RolesClient       Roles         { get; private set; }
+
         // ── State ─────────────────────────────────────────────────────────────
 
         public ConnectionState State
@@ -102,6 +105,7 @@ namespace Biomata.SDK
                 Ticks        = new TickClient(_transport);
                 Events       = new EventStreamClient(_transport);
                 Snapshots    = new SnapshotClient(_transport);
+                Roles        = new RolesClient(_transport);
 
                 // Verify the server is responding to RPCs (not just TCP-connected).
                 using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(ct);

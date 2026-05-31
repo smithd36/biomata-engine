@@ -58,11 +58,12 @@ namespace Biomata.SDK.Transport
         private const string M_OBSERVATION   = "send_observation";
         private const string M_TICK          = "tick";
         private const string M_PAUSE         = "pause";
-        private const string M_RESUME       = "resume";
-        private const string M_SNAPSHOT     = "snapshot";
-        private const string M_RESTORE      = "restore";
-        private const string M_SUBSCRIBE    = "subscribe_events";
-        private const string M_UNSUBSCRIBE  = "unsubscribe_events";
+        private const string M_RESUME        = "resume";
+        private const string M_SNAPSHOT      = "snapshot";
+        private const string M_RESTORE       = "restore";
+        private const string M_SUBSCRIBE     = "subscribe_events";
+        private const string M_UNSUBSCRIBE   = "unsubscribe_events";
+        private const string M_ROLES_LIST    = "roles.list";
 
         private readonly BiomataConfig _config;
         private readonly string        _url;
@@ -536,6 +537,35 @@ namespace Biomata.SDK.Transport
             if (!IsConnected) return;
             try { await RequestAsync(M_UNSUBSCRIBE, null, ct); }
             catch { /* best-effort */ }
+        }
+
+        public async Task<RolesData> RolesListAsync(CancellationToken ct = default)
+        {
+            var r = await RequestAsync(M_ROLES_LIST, null, ct);
+            var data = new RolesData { version = (string)r["version"] ?? "1" };
+            var arr  = r["roles"] as JArray;
+            if (arr != null)
+            {
+                var entries = new List<RoleEntry>(arr.Count);
+                foreach (var item in arr)
+                {
+                    if (!(item is JObject o)) continue;
+                    entries.Add(new RoleEntry
+                    {
+                        name           = (string)o["name"]           ?? string.Empty,
+                        capabilities   = (o["capabilities"]  as JArray)?.ToObject<string[]>() ?? Array.Empty<string>(),
+                        observations   = (o["observations"]  as JArray)?.ToObject<string[]>() ?? Array.Empty<string>(),
+                        brain_provider = (string)o["brain_provider"],
+                        brain_class    = (string)o["brain_class"],
+                    });
+                }
+                data.roles = entries.ToArray();
+            }
+            else
+            {
+                data.roles = Array.Empty<RoleEntry>();
+            }
+            return data;
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
