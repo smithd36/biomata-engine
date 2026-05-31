@@ -53,7 +53,7 @@ roles:
       - position
       - nearby_agents
 
-  BusinessVillager:
+  Merchant:
     capabilities: [trade, social]
     brain:
       provider: ollama          # ollama = src.plugins.builtin.ollama.brain.OllamaLLMBrain
