@@ -10,6 +10,25 @@ using UnityEngine;
 namespace Biomata.Integration
 {
     /// <summary>
+    /// Controls who is responsible for advancing the simulation tick.
+    /// </summary>
+    public enum TickMode
+    {
+        /// <summary>
+        /// The <see cref="UnitySimulationManager"/> drives its own tick accumulator
+        /// from FixedUpdate / Update. Default behavior when used without a bootstrapper.
+        /// </summary>
+        Internal,
+
+        /// <summary>
+        /// An external owner (e.g. <see cref="BiomataSimulationBootstrapper"/>) drives
+        /// ticks via <see cref="UnitySimulationManager.ForceTick"/>. The USM's internal
+        /// accumulator is completely bypassed — not just slowed down.
+        /// </summary>
+        External,
+    }
+
+    /// <summary>
     /// Central coordinator for NPC simulation. Place exactly one in your scene.
     ///
     /// Responsibilities:
@@ -117,8 +136,9 @@ namespace Biomata.Integration
 
         private readonly List<UnityAgentBridge> _bridges = new List<UnityAgentBridge>();
         private CancellationTokenSource _cts;
-        private float _timeSinceLastTick;
-        private bool  _tickInProgress;
+        private float    _timeSinceLastTick;
+        private bool     _tickInProgress;
+        private TickMode _tickMode = TickMode.Internal;
 
         // Reusable per-tick buffers — avoid GC allocations every tick at 500 agents.
         // GatherObservations clears and refills _observationBuffer each tick.
@@ -162,6 +182,7 @@ namespace Biomata.Integration
 
         private void AccumulateAndTick(float dt)
         {
+            if (_tickMode == TickMode.External) return;
             if (!IsConnected || _tickInProgress) return;
 
             _timeSinceLastTick += dt;
@@ -275,6 +296,19 @@ namespace Biomata.Integration
         internal void UnregisterBridge(UnityAgentBridge bridge) => _bridges.Remove(bridge);
 
         // ── Tick ──────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Controls whether the USM drives its own tick accumulator or defers
+        /// to an external caller (e.g. <see cref="BiomataSimulationBootstrapper"/>).
+        ///
+        /// When set to <see cref="TickMode.External"/> the internal accumulator in
+        /// FixedUpdate / Update is completely bypassed; only explicit
+        /// <see cref="ForceTick"/> calls advance the simulation. This makes scheduler
+        /// ownership explicit in object state rather than encoded as a magic tickRate
+        /// value, so <see cref="Configure"/> can no longer accidentally re-enable the
+        /// internal loop.
+        /// </summary>
+        public void SetTickMode(TickMode mode) => _tickMode = mode;
 
         /// <summary>
         /// Fire a tick immediately, bypassing the rate timer.

@@ -99,10 +99,6 @@ namespace Biomata.Integration
         [Tooltip("Log connection and tick lifecycle events to the Unity Console.")]
         [SerializeField] private bool debugLogging = false;
 
-        // Prevents the USM's internal accumulator from ever firing — the
-        // bootstrapper owns all tick scheduling via ForceTick().
-        private const float UsmDisabledTickRate = 0.0001f;
-
         // ── Resolved config ───────────────────────────────────────────────────────
         // Each property returns the config asset's value unless the matching
         // override flag is true (or no config is assigned).
@@ -326,8 +322,8 @@ namespace Biomata.Integration
 
         private void ApplyManagerConfig()
         {
-            // Disable USM's internal tick accumulator; bootstrapper owns all tick scheduling.
-            Manager.Configure(RHost, RPort, tickRate: UsmDisabledTickRate, autoConnect: false);
+            Manager.Configure(RHost, RPort, autoConnect: false);
+            Manager.SetTickMode(TickMode.External);
         }
 
         private void AccumulateAndTick(float dt)
