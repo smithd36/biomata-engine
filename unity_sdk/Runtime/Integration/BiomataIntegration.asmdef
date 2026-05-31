@@ -2,7 +2,8 @@
     "name": "BiomataIntegration",
     "rootNamespace": "Biomata.Integration",
     "references": [
-        "BiomataSDK"
+        "BiomataSDK",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

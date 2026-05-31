@@ -3,7 +3,8 @@
     "rootNamespace": "Biomata.Integration.Editor",
     "references": [
         "BiomataSDK",
-        "BiomataIntegration"
+        "BiomataIntegration",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [
         "Editor"
