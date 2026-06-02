@@ -209,14 +209,15 @@ class TestWebSocketAgentLifecycle:
                     "agent_name":   "Bob",
                     "brain_class":  "src.plugins.builtin.idle_brain.brain.IdleBrain",
                 })
-                assert resp["result"]["success"] is True
+                assert resp["ok"] is True
+                assert resp["result"]["agent_id"] == "agent_002"
 
                 health = await _request(ws, Method.HEALTH_CHECK)
                 assert health["result"]["agent_count"] == 2
 
                 # Remove it.
                 rm = await _request(ws, Method.REMOVE_AGENT, {"agent_id": "agent_002"})
-                assert rm["result"]["success"] is True
+                assert rm["ok"] is True
 
                 health = await _request(ws, Method.HEALTH_CHECK)
                 assert health["result"]["agent_count"] == 1
@@ -231,8 +232,8 @@ class TestWebSocketAgentLifecycle:
                     "agent_name": "DuplicateAlice",
                     "brain_class": "src.plugins.builtin.replay_brain.brain.ReplayBrain",
                 })
-                assert resp["result"]["success"] is False
-                assert "already registered" in resp["result"]["error"]
+                assert resp["ok"] is False
+                assert "already registered" in resp["error"]["message"]
 
 
 class TestWebSocketLifecycleControl:
@@ -319,7 +320,7 @@ class TestWebSocketSnapshot:
                 assert health["result"]["tick"] == 3
 
                 restore = await _request(ws, Method.RESTORE, {"data_b64": b64})
-                assert restore["result"]["success"] is True
+                assert restore["ok"] is True
                 assert restore["result"]["tick"]    == 1
 
 
@@ -331,13 +332,17 @@ class TestWebSocketErrorPaths:
             async with websockets.connect(f"ws://127.0.0.1:{port}") as ws:
                 resp = await _request(ws, "no_such_method")
                 assert resp["ok"] is False
-                assert "unknown method" in resp["error"]
+                assert "unknown method" in resp["error"]["message"]
 
     async def test_malformed_request_does_not_close_connection(self):
         sim     = _make_sim()
         session = SimulationSession(sim)
         async with _running_server(session) as (_, port):
             async with websockets.connect(f"ws://127.0.0.1:{port}") as ws:
+                # 消耗掉连接时服务端推送的 Server Hello (hlo) 帧
+                hlo = await asyncio.wait_for(ws.recv(), timeout=1.0)
+                assert json.loads(hlo)["type"] == "hlo"
+
                 await ws.send("not-valid-json")
                 # Server should send an error frame back with id=None.
                 raw = await asyncio.wait_for(ws.recv(), timeout=1.0)

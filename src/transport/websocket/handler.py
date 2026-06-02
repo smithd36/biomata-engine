@@ -260,45 +260,22 @@ class ConnectionHandler:
             "tick_mode":     st.tick_mode,
         }
 
-    def _handle_register_agent(self, params: dict[str, Any]) -> dict[str, Any]:
-        # ── Parse params ──────────────────────────────────────────────────────
-        agent_id      = params.get("agent_id")      or ""
-        agent_name    = params.get("agent_name")     or ""
-        brain_class   = params.get("brain_class")    or ""
-        brain_config  = params.get("brain_config")   or {}
-        memory_class  = params.get("memory_class")   or None
-        memory_config = params.get("memory_config")  or {}
-        capabilities  = params.get("capabilities")   or []
-        inventory     = params.get("inventory")      or {}
-        metadata      = params.get("metadata")       or {}
-        # reconnect=True: if the agent is already registered, return its info
-        # without error (safe to call on WebSocket reconnect).
-        reconnect     = bool(params.get("reconnect", False))
-
+    def _do_register_agent(
+        self,
+        defn: AgentDefinition,
+        reconnect: bool,
+    ) -> tuple[Any, bool]:
+        """
+        核心的 agent 注册逻辑，由 _handle_register_agent 和 _handle_agent_register 共享。
+        返回 (agent, reconnected)。
+        """
         # ── Reconnect shortcut ────────────────────────────────────────────────
         if reconnect:
             existing = next(
-                (a for a in self._sim.agents if a.id == agent_id), None
+                (a for a in self._sim.agents if a.id == defn.id), None
             )
             if existing is not None:
-                return {
-                    "agent_id":    existing.id,
-                    "reconnected": True,
-                    "capabilities": list(existing.capabilities),
-                }
-
-        # ── Validate & build definition ───────────────────────────────────────
-        defn = AgentDefinition(
-            id            = agent_id,
-            name          = agent_name,
-            brain_class   = brain_class,
-            brain_config  = brain_config  if isinstance(brain_config, dict)  else {},
-            memory_class  = memory_class  or None,
-            memory_config = memory_config if isinstance(memory_config, dict) else {},
-            capabilities  = capabilities  if isinstance(capabilities, list)  else [],
-            inventory     = inventory     if isinstance(inventory, dict)     else {},
-            metadata      = metadata      if isinstance(metadata, dict)      else {},
-        )
+                return existing, True
 
         errors = validate_definition(defn)
         if errors:
@@ -322,9 +299,38 @@ class ConnectionHandler:
         except Exception as exc:    # noqa: BLE001
             raise ProtocolError(str(exc), ErrorCode.INVALID_PARAMS) from exc
 
+        return agent, False
+
+    def _handle_register_agent(self, params: dict[str, Any]) -> dict[str, Any]:
+        # ── Parse params ──────────────────────────────────────────────────────
+        agent_id      = params.get("agent_id")      or ""
+        agent_name    = params.get("agent_name")     or ""
+        brain_class   = params.get("brain_class")    or ""
+        brain_config  = params.get("brain_config")   or {}
+        memory_class  = params.get("memory_class")   or None
+        memory_config = params.get("memory_config")  or {}
+        capabilities  = params.get("capabilities")   or []
+        inventory     = params.get("inventory")      or {}
+        metadata      = params.get("metadata")       or {}
+        reconnect     = bool(params.get("reconnect", False))
+
+        defn = AgentDefinition(
+            id            = agent_id,
+            name          = agent_name,
+            brain_class   = brain_class,
+            brain_config  = brain_config  if isinstance(brain_config, dict)  else {},
+            memory_class  = memory_class  or None,
+            memory_config = memory_config if isinstance(memory_config, dict) else {},
+            capabilities  = capabilities  if isinstance(capabilities, list)  else [],
+            inventory     = inventory     if isinstance(inventory, dict)     else {},
+            metadata      = metadata      if isinstance(metadata, dict)      else {},
+        )
+
+        agent, was_reconnected = self._do_register_agent(defn, reconnect)
+
         return {
             "agent_id":     agent.id,
-            "reconnected":  False,
+            "reconnected":  was_reconnected,
             "capabilities": list(agent.capabilities),
         }
 
