@@ -26,6 +26,139 @@ from typing import Any, Protocol, runtime_checkable
 
 
 @dataclass
+class POITraversal:
+    """
+    Optional traversal metadata for POIs that connect two areas (Phase 4).
+
+    When ``is_portal`` is ``True`` the POI acts as a spatial transition point —
+    a door, staircase, elevator, or any boundary crossing.  Unity handles the
+    physical transition; Python's role is to surface the metadata in observations
+    so the brain can reason about connectivity.
+
+    ``connects_to`` is the ``id`` (Unity GameObject name) of the destination POI
+    where the agent resumes after crossing.  Unity looks up the destination POI's
+    ``exit`` anchor (from ``BiomataPOIData``) and places the agent there.
+
+    Absent fields have safe defaults — existing ``POI`` objects that do not
+    carry traversal data are unaffected.
+    """
+    is_portal:   bool       = False
+    connects_to: str | None = None
+
+
+def parse_poi_traversal(poi_obs: "dict[str, Any]") -> POITraversal | None:
+    """
+    Parse traversal metadata from a POI observation dict.
+
+    Returns a ``POITraversal`` when the dict contains a ``"traversal"`` sub-dict
+    with ``"is_portal": true``; returns ``None`` otherwise.
+
+    Safe to call on any POI observation regardless of version — missing or
+    non-dict ``"traversal"`` values produce ``None``, not an error.
+
+    Example::
+
+        for poi in observation.get("nearby_pois", []):
+            traversal = parse_poi_traversal(poi)
+            if traversal and traversal.is_portal:
+                # brain knows this POI is a portal to traversal.connects_to
+    """
+    raw = poi_obs.get("traversal")
+    if not isinstance(raw, dict):
+        return None
+    if not raw.get("is_portal"):
+        return None
+    return POITraversal(
+        is_portal   = True,
+        connects_to = raw.get("connects_to") or None,
+    )
+
+
+@dataclass
+class POI:
+    """
+    A point of interest in the world.
+
+    v1 (position-based): populate only ``id`` and ``position``.
+    v2 (structured): additionally carry ``type``, ``anchors``, and ``traversal``.
+
+    All v2 fields are optional with safe defaults so any existing code that
+    constructs POI objects or dicts with only ``id`` + ``position`` continues
+    to work without modification.  ``position`` is and will remain the primary
+    location field — it is never removed.
+
+    ``anchors`` maps anchor name → ``[x, y, z]`` coordinate list, e.g.::
+
+        {"approach": [1.0, 0.0, 2.5], "entry": [1.0, 0.0, 1.0]}
+
+    This matches the array format emitted by Unity's ``POIObservationProvider``
+    in Phase 1+.
+
+    ``traversal`` carries optional portal semantics (Phase 4+).  When present,
+    the POI represents a spatial transition.  Use ``parse_poi_traversal(poi_dict)``
+    to read it from an observation dict.
+    """
+    id:        str
+    position:  dict[str, float]
+    type:      str                              = "location"
+    anchors:   dict[str, list[float]] | None   = None
+    traversal: POITraversal | None             = None
+
+
+def _ensure_3d(coords: list) -> list[float]:
+    """Pad a 2-element [x, z] coordinate list to [x, 0.0, z]."""
+    if len(coords) == 2:
+        return [float(coords[0]), 0.0, float(coords[1])]
+    return [float(coords[0]), float(coords[1]), float(coords[2])]
+
+
+def resolve_poi_target(
+    poi: dict[str, Any],
+    anchor: str = "approach",
+) -> list[float] | None:
+    """
+    .. deprecated::
+        Do NOT use in movement paths.  Unity (``MoveActionHandler``) is the sole
+        authority for resolving POI → world coordinates.  Python must emit a
+        symbolic ``{"destination": poi_id, "anchor": anchor}`` command and let Unity
+        resolve the anchor from the live scene Transform at execution time.
+
+        This function is retained for non-movement callers (e.g. range checks,
+        observation processing) that read POI position data without issuing
+        engine_commands.
+
+    Extract the best movement target from a POI observation dict.
+
+    Preference order (Phase 2 anchor-aware):
+      1. ``anchors[anchor]``  — named anchor position (Phase 1+ array format)
+      2. ``position``         — v2 ``[x, y, z]`` array (Phase 1+)
+      3. ``x`` / ``z``        — v1 flat keys (Phase 0 / legacy)
+
+    Returns a ``[x, y, z]`` list, or ``None`` if no usable position data exists.
+    """
+    # Prefer named anchor (v2 array format from Phase 1 Unity emission)
+    anchors_data = poi.get("anchors")
+    if isinstance(anchors_data, dict):
+        anchor_pos = anchors_data.get(anchor)
+        if isinstance(anchor_pos, (list, tuple)) and len(anchor_pos) >= 2:
+            return _ensure_3d(list(anchor_pos))
+
+    # v2 position array
+    pos = poi.get("position")
+    if isinstance(pos, (list, tuple)) and len(pos) >= 2:
+        return _ensure_3d(list(pos))
+
+    # v1 flat keys — legacy fallback, always safe
+    x = poi.get("x")
+    z = poi.get("z")
+    if x is not None and z is not None:
+        y = poi.get("y", 0.0)
+        return [float(x), float(y), float(z)]
+
+    return None
+
+
+@dataclass
 class AgentView:
     """Read-only snapshot of an agent. Created fresh each tick."""
     id:        str

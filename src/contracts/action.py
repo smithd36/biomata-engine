@@ -193,6 +193,97 @@ class ActionResult:
             self.mutations = StateMutations(inventory=dict(inv), ext=ext)
 
 
+# ── MoveAction ───────────────────────────────────────────────────────────────
+
+def _to_float(v: Any) -> float | None:
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+@dataclass
+class MoveAction:
+    """
+    Typed parameter bag for move / navigate / walk / travel / go actions.
+
+    v1 (position-based, existing):
+        Set ``x`` / ``z`` or ``destination``. Unchanged from before.
+
+    v2 (POI-semantic, Phase 3+):
+        Set ``poi_id`` (the POI's id string from the observation) and
+        optionally ``anchor`` (defaults to ``"approach"``).  Python emits a
+        symbolic intent; Unity (``MoveActionHandler``) is the sole authority
+        for resolving POI id → world coordinates via the live scene Transform.
+
+    Construct from an ``Intent``::
+
+        move = MoveAction.from_intent(intent)
+        cmd  = move.to_navigate_command()
+
+    Old brains that output only ``destination`` / ``x`` / ``z`` are unaffected:
+    ``poi_id`` defaults to ``None``, ``anchor`` defaults to ``"approach"``.
+    """
+    destination: str | None   = None
+    x:           float | None = None
+    y:           float | None = None
+    z:           float | None = None
+    poi_id:      str | None   = None
+    anchor:      str          = "approach"
+
+    @classmethod
+    def from_intent(cls, intent: "Intent") -> "MoveAction":
+        """
+        Extract move parameters from ``intent.parameters`` and ``intent.target``.
+
+        Checks both the v1 keys (``x`` / ``z``, ``target_x`` / ``target_z``,
+        ``destination``) and the v2 keys (``poi_id``, ``anchor``).
+        All keys are optional — unset keys keep their dataclass defaults.
+        """
+        p = intent.parameters
+        return cls(
+            destination = intent.target or p.get("destination") or None,
+            x           = _to_float(p.get("x") or p.get("target_x")),
+            y           = _to_float(p.get("y") or p.get("target_y")),
+            z           = _to_float(p.get("z") or p.get("target_z")),
+            poi_id      = p.get("poi_id") or None,
+            anchor      = str(p.get("anchor") or "approach"),
+        )
+
+    def to_navigate_command(self) -> "dict[str, Any]":
+        """
+        Build a ``{"type": "navigate", ...}`` engine_command dict.
+
+        Preference order:
+
+        1. Explicit ``x`` / ``z`` coords — emits ``{"type":"navigate","x":…,"y":…,"z":…}``
+        2. ``poi_id`` — emits ``{"type":"navigate","destination":…}`` plus optional
+           ``"anchor"`` key.  Unity (``MoveActionHandler``) is the sole authority for
+           resolving POI id → world coordinates via the live scene Transform.
+        3. ``destination`` string — emits ``{"type":"navigate","destination":…}``
+        """
+        # Path 1: explicit coordinates
+        if self.x is not None and self.z is not None:
+            return {"type": "navigate",
+                    "x": self.x, "y": self.y or 0.0, "z": self.z}
+
+        # Path 2: POI id — delegate spatial resolution to Unity entirely.
+        # Python emits a symbolic intent; Unity resolves the anchor from the live Transform.
+        if self.poi_id is not None:
+            cmd: dict[str, Any] = {"type": "navigate", "destination": self.poi_id}
+            if self.anchor != "approach":
+                cmd["anchor"] = self.anchor
+            return cmd
+
+        # Path 3: plain destination string
+        if self.destination:
+            return {"type": "navigate", "destination": self.destination}
+
+        return {"type": "navigate"}
+
+
 # ── ActionHandler ─────────────────────────────────────────────────────────────
 
 @runtime_checkable

@@ -118,5 +118,20 @@ namespace Biomata.Integration.Actions
                 yield return null;
             }
         }
+
+        /// <summary>
+        /// NavMesh-aware portal transition: uses <see cref="NavMeshAgent.Warp"/> to reposition
+        /// the agent on the navmesh surface at the exit anchor.
+        ///
+        /// The base class sets <c>transform.position</c> directly, which desyncs the
+        /// NavMeshAgent's internal path state and causes the next <c>SetDestination</c>
+        /// call to produce incorrect paths. Override with a fade/animation by adding
+        /// a yield before the Warp call.
+        /// </summary>
+        protected override IEnumerator PortalTransition(Transform agent, Vector3 exitPosition)
+        {
+            NavAgent.Warp(exitPosition);
+            yield return null;
+        }
     }
 }

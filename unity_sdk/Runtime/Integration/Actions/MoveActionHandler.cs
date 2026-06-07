@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
+using Biomata.Integration;
 using Biomata.SDK.Models;
 using UnityEngine;
 
@@ -12,7 +13,14 @@ namespace Biomata.Integration.Actions
     /// Target is extracted from engine_commands in priority order:
     ///   1. <c>{ "type": "navigate", "x": …, "y": …, "z": … }</c> in EngineCommands
     ///   2. <c>target_x</c> / <c>target_z</c> keys in action Parameters
-    ///   3. <c>destination</c> string in the navigate command, resolved to a tagged POI by name
+    ///   3. <c>destination</c> string in the navigate command, resolved to a tagged POI by name.
+    ///      If the command also carries <c>"anchor"</c>, that named anchor on <see cref="BiomataPOIData"/>
+    ///      is used as the final destination; falls back to <c>"approach"</c> if absent, then to
+    ///      the POI's root transform position.
+    ///
+    ///      If the destination POI has <see cref="BiomataPOIData.IsPortal"/> set, the agent is
+    ///      automatically moved to the <c>exit</c> anchor of the connected POI after arrival.
+    ///      Override <see cref="PortalTransition"/> to add a fade or animation.
     ///
     /// For path 3, tag POI GameObjects with <see cref="poiTag"/> (default: <c>"BiomataPOI"</c>).
     /// The cache is built in Awake — call <see cref="RefreshPOICache"/> if POIs spawn at runtime.
@@ -77,6 +85,10 @@ namespace Biomata.Integration.Actions
             if (target == null) yield break;
 
             yield return MoveTowards(bridge.transform, target.Value);
+
+            // Phase 4: if the destination was a portal POI, transition to the exit anchor
+            // of the connected POI.  Non-portal POIs skip this block entirely.
+            yield return TryPortalTransition(decision, bridge.transform);
         }
 
         protected virtual IEnumerator MoveTowards(Transform t, Vector3 target)
@@ -95,6 +107,66 @@ namespace Biomata.Integration.Actions
                 t.position = Vector3.MoveTowards(t.position, target, moveSpeed * Time.deltaTime);
                 yield return null;
             }
+        }
+
+        /// <summary>
+        /// If the navigate command targeted a portal POI, move the agent to the exit
+        /// anchor of the connected POI.  Does nothing when the destination is not a portal
+        /// or has no valid <see cref="BiomataPOIData.ConnectsTo"/> target in the cache.
+        /// </summary>
+        private IEnumerator TryPortalTransition(AgentDecisionResult decision, Transform agent)
+        {
+            var portal = ExtractPortal(decision);
+            if (portal == null || string.IsNullOrEmpty(portal.ConnectsTo)) yield break;
+
+            var destKey = portal.ConnectsTo.ToLowerInvariant();
+            if (_poiCache == null || !_poiCache.TryGetValue(destKey, out var destTransform))
+            {
+                Debug.LogWarning(
+                    $"[MoveActionHandler] Portal destination '{portal.ConnectsTo}' not found " +
+                    "in POI cache. Call RefreshPOICache() if the destination POI spawned after Awake.",
+                    this);
+                yield break;
+            }
+
+            var destData   = destTransform.GetComponent<BiomataPOIData>();
+            var exitAnchor = destData?.GetWorldAnchor("exit") ?? destTransform.position;
+            yield return PortalTransition(agent, exitAnchor);
+        }
+
+        /// <summary>
+        /// Override to add a transition effect (screen fade, animation) before placement.
+        /// Default: instant teleport to <paramref name="exitPosition"/>.
+        /// <see cref="NavMeshMoveActionHandler"/> can override this to warp the NavMeshAgent.
+        /// </summary>
+        protected virtual IEnumerator PortalTransition(Transform agent, Vector3 exitPosition)
+        {
+            agent.position = exitPosition;
+            yield return null;
+        }
+
+        /// <summary>
+        /// Returns the <see cref="BiomataPOIData"/> of the navigate destination when it is a
+        /// portal POI, or <c>null</c> when the destination is not a portal or is not in the
+        /// POI cache.  Only inspects Path 3 (destination string) — explicit coordinate
+        /// commands (Paths 1 and 2) are not treated as portal triggers.
+        /// </summary>
+        private BiomataPOIData ExtractPortal(AgentDecisionResult decision)
+        {
+            foreach (var cmd in decision.EngineCommands)
+            {
+                if (!TryGetStr(cmd, "type", out var type) || type != "navigate") continue;
+                if (!TryGetStr(cmd, "destination", out var dest)) continue;
+
+                var key = dest.ToLowerInvariant();
+                if (_poiCache != null && _poiCache.TryGetValue(key, out var t))
+                {
+                    var data = t.GetComponent<BiomataPOIData>();
+                    if (data != null && data.IsPortal)
+                        return data;
+                }
+            }
+            return null;
         }
 
         /// <summary>
@@ -123,6 +195,9 @@ namespace Biomata.Integration.Actions
             }
 
             // Path 3: destination name resolved via POI cache.
+            // Phase 2: prefer the "approach" anchor from BiomataPOIData when present;
+            //          fall back to the POI transform's root position otherwise.
+            //          Paths 1 and 2 above are explicit-coord paths and are unaffected.
             foreach (var cmd in decision.EngineCommands)
             {
                 if (!TryGetStr(cmd, "type", out var type) || type != "navigate") continue;
@@ -130,7 +205,19 @@ namespace Biomata.Integration.Actions
 
                 var key = dest.ToLowerInvariant();
                 if (_poiCache != null && _poiCache.TryGetValue(key, out var t))
-                    return t.position;
+                {
+                    // Phase 3: read anchor name from the command; default to "approach".
+                    // Old commands without an "anchor" key get the same "approach" behavior
+                    // as Phase 2, so existing agents are unaffected.
+                    TryGetStr(cmd, "anchor", out var anchorName);
+                    var poiData     = t.GetComponent<BiomataPOIData>();
+                    var anchorWorld = poiData?.GetWorldAnchor(anchorName ?? "approach");
+                    Debug.Log(
+                        $"[MoveActionHandler] Path3: dest='{dest}' anchor='{anchorName ?? "approach"}' " +
+                        $"resolved={anchorWorld?.ToString() ?? $"NULL — falling back to t.position {t.position}"}",
+                        this);
+                    return anchorWorld ?? t.position;
+                }
 
                 Debug.LogWarning(
                     $"[MoveActionHandler] '{gameObject.name}': destination '{dest}' not found " +

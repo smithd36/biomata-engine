@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Biomata.Integration;
 
 namespace Biomata.Integration.Observations
 {
@@ -29,10 +30,24 @@ namespace Biomata.Integration.Observations
     /// Each POI entry dictionary contains:
     /// <list type="bullet">
     ///   <item><c>"id"</c>       — GameObject name.</item>
-    ///   <item><c>"x"</c>        — world X position.</item>
-    ///   <item><c>"z"</c>        — world Z position.</item>
+    ///   <item><c>"x"</c>        — world X position (always present; primary location field).</item>
+    ///   <item><c>"z"</c>        — world Z position (always present; primary location field).</item>
     ///   <item><c>"distance"</c> — world-space distance (only when <see cref="includeDistances"/> is true).</item>
+    ///   <item><c>"position"</c> — <c>double[3]</c> world-space <c>[x, y, z]</c>
+    ///                             (only when a <see cref="BiomataPOIData"/> component is present — v2 field).
+    ///                             <c>"x"</c> and <c>"z"</c> remain the primary fields for backward compatibility.</item>
+    ///   <item><c>"type"</c>     — semantic category string, e.g. <c>"portal"</c>, <c>"shop"</c>
+    ///                             (only when a <see cref="BiomataPOIData"/> component is present — v2 field).</item>
+    ///   <item><c>"anchors"</c>  — <c>Dictionary&lt;string, double[3]&gt;</c> of named world-space anchor positions,
+    ///                             each value a <c>[x, y, z]</c> array, e.g.
+    ///                             <c>{ "approach": [1,0,2], "entry": [1,0,1], "exit": [1,0,3] }</c>
+    ///                             (only when a <see cref="BiomataPOIData"/> component is present — v2 field).</item>
     /// </list>
+    ///
+    /// <para><b>Backward compatibility:</b> POI GameObjects without a
+    /// <see cref="BiomataPOIData"/> component produce exactly the same observation
+    /// as before (<c>id</c>, <c>x</c>, <c>z</c>, optional <c>distance</c>).
+    /// The v2 fields are never present unless the component is attached.</para>
     /// </summary>
     [AddComponentMenu("Biomata/Observations/Points of Interest")]
     public class POIObservationProvider : ObservationProviderBase
@@ -124,6 +139,53 @@ namespace Biomata.Integration.Observations
                 };
                 if (includeDistances)
                     entry["distance"] = (double)Mathf.Sqrt(sqrDist);
+
+                // v2 optional fields — only emitted when BiomataPOIData is attached.
+                // Existing consumers that read only "id", "x", "z", "distance" are unaffected.
+                var poiData = poi.GetComponent<BiomataPOIData>();
+                if (poiData != null)
+                {
+                    // "position" as [x, y, z] array. "x" and "z" flat keys above remain
+                    // the primary fields consumed by existing code; this adds a full 3D
+                    // representation for v2 consumers without removing anything.
+                    entry["position"] = new double[]
+                    {
+                        poi.position.x,
+                        poi.position.y,
+                        poi.position.z,
+                    };
+
+                    entry["type"] = poiData.PoiType;
+
+                    // Anchor values are [x, y, z] arrays to match the position format.
+                    var anchorsDict = new Dictionary<string, object>(poiData.Anchors.Count);
+                    foreach (var anchor in poiData.Anchors)
+                    {
+                        if (string.IsNullOrEmpty(anchor.name)) continue;
+                        var worldAnchor = poi.TransformPoint(anchor.localOffset);
+                        anchorsDict[anchor.name] = new double[]
+                        {
+                            worldAnchor.x,
+                            worldAnchor.y,
+                            worldAnchor.z,
+                        };
+                    }
+                    entry["anchors"] = anchorsDict;
+
+                    // v2 traversal metadata — only emitted for portal POIs (Phase 4).
+                    // Non-portal POIs produce no "traversal" key; existing consumers unaffected.
+                    if (poiData.IsPortal)
+                    {
+                        var traversal = new Dictionary<string, object>
+                        {
+                            ["is_portal"] = true,
+                        };
+                        if (!string.IsNullOrEmpty(poiData.ConnectsTo))
+                            traversal["connects_to"] = poiData.ConnectsTo;
+                        entry["traversal"] = traversal;
+                    }
+                }
+
                 results.Add(entry);
             }
 

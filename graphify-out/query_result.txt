@@ -1,0 +1,249 @@
+Traversal: BFS | Start: ['Extract the best movement target from a POI observation dict.      Preference', 'NavMeshMoveActionHandler.cs', 'NavMesh Move Action Handler', 'NavMeshAgent', 'NavMeshMoveActionHandler'] | 115 nodes
+  NODE Extract the best movement target from a POI observation dict.      Preference [src=src/contracts/world.py loc=L119]
+  NODE NavMeshMoveActionHandler.cs [src=unity_sdk/Runtime/Integration/Actions/NavMeshMoveActionHandler.cs loc=L1]
+  NODE NavMesh Move Action Handler [src=unity_sdk/Runtime/Integration/Actions/NavMeshMoveActionHandler.cs loc=None]
+  NODE NavMeshMoveActionHandler [src=unity_sdk/Runtime/Integration/Actions/NavMeshMoveActionHandler.cs loc=L38]
+  NODE NavMeshAgent [src=unity_sdk/Runtime/Integration/Actions/NavMeshMoveActionHandler.cs loc=L56]
+  NODE .to_navigate_command() [src=src/contracts/action.py loc=L260]
+  NODE Vector3 [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L94]
+  NODE _parse_param_spec() [src=src/contracts/action.py loc=L73]
+  NODE Move Action Handler [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=None]
+  NODE Observation Provider Base [src=unity_sdk/Runtime/Integration/Observations/ObservationProviderBase.cs loc=None]
+  NODE .RefreshPOICache() [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L49]
+  NODE .TryGetFloat() [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L234]
+  NODE brain.py [src=src/contracts/brain.py loc=L1]
+  NODE .get_nearby_agents() [src=src/contracts/world.py loc=L261]
+  NODE Dictionary [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L41]
+  NODE src/contracts/world.py ─────────────────────────────── World and WorldContext [src=src/contracts/world.py loc=L1]
+  NODE Unity Simulation Manager [src=unity_sdk/Runtime/Integration/Simulation/UnitySimulationManager.cs loc=None]
+  NODE .apply() [src=src/contracts/world.py loc=L208]
+  NODE ActionResult [src=src/contracts/action.py loc=L171]
+  NODE .metadata() [src=src/contracts/world.py loc=L220]
+  NODE IdleActionHandler [src=unity_sdk/Runtime/Integration/Actions/IdleActionHandler.cs loc=L15]
+  NODE str [src=src/contracts/world.py loc=L115]
+  NODE ActionSchema [src=src/contracts/action.py loc=L331]
+  NODE string [src=unity_sdk/Runtime/Integration/Actions/NavMeshMoveActionHandler.cs loc=L65]
+  NODE ExternalWorld [src=src/contracts/world.py loc=L275]
+  NODE resolve_poi_target() [src=src/contracts/world.py loc=L115]
+  NODE ActionHandlerBase [src= loc=]
+  NODE .Configure() [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L67]
+  NODE SpeakActionHandler [src=unity_sdk/Runtime/Integration/Actions/SpeakActionHandler.cs loc=L19]
+  NODE parse_poi_traversal() [src=src/contracts/world.py loc=L49]
+  NODE POITraversal [src=src/contracts/world.py loc=L29]
+  NODE Role Manifest Loader [src=unity_sdk/Runtime/Integration/Simulation/RoleManifestLoader.cs loc=None]
+  NODE BiomataPOIData [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L154]
+  NODE ActionHint [src=src/contracts/action.py loc=L36]
+  NODE WorldContext [src=src/contracts/world.py loc=L226]
+  NODE _render_param_spec() [src=src/contracts/action.py loc=L323]
+  NODE Biomata Thought Bubble Tools [src=unity_sdk/Editor/Integration/BiomataThoughtBubbleTools.cs loc=None]
+  NODE Biomata.Integration.Actions [src=unity_sdk/Runtime/Integration/Actions/NavMeshMoveActionHandler.cs loc=L7]
+  NODE MoveActionHandler.cs [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L1]
+  NODE Biomata.Integration.Actions [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L8]
+  NODE action.py [src=src/contracts/action.py loc=L1]
+  NODE POI [src=src/contracts/world.py loc=L78]
+  NODE AgentDecisionResult [src=unity_sdk/Runtime/Integration/Actions/NavMeshMoveActionHandler.cs loc=L72]
+  NODE .collect_commands() [src=src/contracts/world.py loc=L319]
+  NODE AgentDecisionResult [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L82]
+  NODE SpatialWorld [src=src/contracts/world.py loc=L240]
+  NODE src/contracts/action.py ──────────────────────────────── Contracts for the act [src=src/contracts/action.py loc=L1]
+  NODE .PortalTransition() [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L142]
+  NODE .TryPortalTransition() [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L117]
+  NODE Action Manifest Loader [src=unity_sdk/Runtime/Integration/Actions/ActionManifestLoader.cs loc=None]
+  NODE parse_intent() [src=src/contracts/action.py loc=L113]
+  NODE Enum [src= loc=]
+  NODE Transform Observation Provider [src=unity_sdk/Runtime/Integration/Observations/TransformObservationProvider.cs loc=None]
+  NODE float [src=unity_sdk/Runtime/Integration/Actions/NavMeshMoveActionHandler.cs loc=L42]
+  NODE float [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L34]
+  NODE _ensure_3d() [src=src/contracts/world.py loc=L108]
+  NODE Observation Client [src=unity_sdk/Runtime/Clients/ObservationClient.cs loc=None]
+  NODE .get_agent() [src=src/contracts/world.py loc=L233]
+  NODE Action Manifest Validator [src=unity_sdk/Editor/Integration/ActionManifestValidator.cs loc=None]
+  NODE MoveAction [src=src/contracts/action.py loc=L208]
+  NODE World [src=src/contracts/world.py loc=L195]
+  NODE Agent Thought Bubble [src=unity_sdk/Runtime/Integration/Agents/AgentThoughtBubble.cs loc=None]
+  NODE .ExecuteCoroutine() [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L82]
+  NODE Interact Action Handler [src=unity_sdk/Runtime/Integration/Actions/InteractActionHandler.cs loc=None]
+  NODE UnityAgentBridge [src=unity_sdk/Runtime/Integration/Actions/NavMeshMoveActionHandler.cs loc=L72]
+  NODE Action Handler Base [src=unity_sdk/Runtime/Integration/Actions/ActionHandlerBase.cs loc=None]
+  NODE memory.py [src=src/contracts/memory.py loc=L1]
+  NODE .are_adjacent() [src=src/contracts/world.py loc=L251]
+  NODE IEnumerator [src=unity_sdk/Runtime/Integration/Actions/NavMeshMoveActionHandler.cs loc=L72]
+  NODE .MoveTowards() [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L94]
+  NODE .Awake() [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L43]
+  NODE Role Manifest Validator [src=unity_sdk/Editor/Integration/RoleManifestValidator.cs loc=None]
+  NODE POI Observation Provider [src=unity_sdk/Runtime/Integration/Observations/POIObservationProvider.cs loc=None]
+  NODE string [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L38]
+  NODE .ExtractPortal() [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L154]
+  NODE Idle Action Handler [src=unity_sdk/Runtime/Integration/Actions/IdleActionHandler.cs loc=None]
+  NODE MoveActionHandler [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L31]
+  NODE Pad a 2-element [x, z] coordinate list to [x, 0.0, z]. [src=src/contracts/world.py loc=L109]
+  NODE IEnumerator [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L82]
+  NODE UnityAgentBridge [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L82]
+  NODE Transform [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L94]
+  NODE .place_agent() [src=src/contracts/world.py loc=L271]
+  NODE Unity Agent Bridge [src=unity_sdk/Runtime/Integration/Agents/UnityAgentBridge.cs loc=None]
+  NODE Observation Collector [src=unity_sdk/Runtime/Integration/Agents/ObservationCollector.cs loc=None]
+  NODE .CanHandle() [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L79]
+  NODE Speak Action Handler [src=unity_sdk/Runtime/Integration/Actions/SpeakActionHandler.cs loc=None]
+  NODE Action Executor [src=unity_sdk/Runtime/Integration/Agents/ActionExecutor.cs loc=None]
+  NODE ActionValidationError [src=src/contracts/action.py loc=L48]
+  NODE PlaceableWorld [src=src/contracts/world.py loc=L265]
+  NODE Build a ``{"type": "navigate", ...}`` engine_command dict.          Preference [src=src/contracts/action.py loc=L264]
+  NODE StateMutations [src=src/contracts/action.py loc=L146]
+  NODE Biomata Agent Editor [src=unity_sdk/Editor/Integration/BiomataAgentEditor.cs loc=None]
+  NODE .TryGetStr() [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L228]
+  NODE _to_float() [src=src/contracts/action.py loc=L198]
+  NODE Agent Ownership Mode Enum [src=unity_sdk/Runtime/Integration/Agents/AgentOwnershipMode.cs loc=None]
+  NODE .ExecuteCoroutine() [src=unity_sdk/Runtime/Integration/Actions/NavMeshMoveActionHandler.cs loc=L72]
+  NODE AgentView [src=src/contracts/world.py loc=L172]
+  NODE VisibilityWorld [src=src/contracts/world.py loc=L255]
+  NODE .from_agent() [src=src/contracts/world.py loc=L180]
+  NODE Biomata Agent Component [src=unity_sdk/Runtime/Integration/Agents/BiomataAgent.cs loc=None]
+  NODE Biomata POI Data [src=unity_sdk/Runtime/Integration/BiomataPOIData.cs loc=None]
+  NODE world.py [src=src/contracts/world.py loc=L1]
+  NODE .push_observation() [src=src/contracts/world.py loc=L295]
+  NODE .observe() [src=src/contracts/world.py loc=L201]
+  NODE # IMPORTANT: ActionHint has NO effect on dispatch, validation, or mutation [src=src/contracts/action.py loc=L30]
+  NODE __init__.py [src=src/contracts/__init__.py loc=L1]
+  NODE HashSet [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L74]
+  NODE Intent [src=src/contracts/action.py loc=L106]
+  NODE Any [src=src/contracts/world.py loc=L115]
+  NODE .push_metadata() [src=src/contracts/world.py loc=L311]
+  NODE .get_world_data() [src=src/contracts/world.py loc=L234]
+  NODE InteractActionHandler [src=unity_sdk/Runtime/Integration/Actions/InteractActionHandler.cs loc=L16]
+  NODE ActionHandler [src=src/contracts/action.py loc=L311]
+  NODE .ExtractTarget() [src=unity_sdk/Runtime/Integration/Actions/MoveActionHandler.cs loc=L176]
+  NODE float [src=src/contracts/world.py loc=L108]
+  EDGE NavMeshMoveActionHandler.cs --contains [EXTRACTED]--> Biomata.Integration.Actions
+  EDGE NavMesh Move Action Handler --implements [EXTRACTED]--> Move Action Handler
+  EDGE NavMeshMoveActionHandler --inherits [EXTRACTED]--> MoveActionHandler
+  EDGE NavMeshMoveActionHandler --method [EXTRACTED]--> .ExecuteCoroutine()
+  EDGE NavMeshMoveActionHandler --references [EXTRACTED]--> float
+  EDGE NavMeshMoveActionHandler --references [EXTRACTED]--> string
+  EDGE Extract the best movement target from a POI observation dict.      Preference --rationale_for [EXTRACTED]--> resolve_poi_target()
+  EDGE MoveActionHandler --inherits [EXTRACTED]--> ActionHandlerBase
+  EDGE MoveActionHandler --contains [EXTRACTED]--> MoveActionHandler.cs
+  EDGE MoveActionHandler --method [EXTRACTED]--> .Awake()
+  EDGE MoveActionHandler --method [EXTRACTED]--> .CanHandle()
+  EDGE MoveActionHandler --method [EXTRACTED]--> .Configure()
+  EDGE MoveActionHandler --method [EXTRACTED]--> .ExecuteCoroutine()
+  EDGE MoveActionHandler --method [EXTRACTED]--> .ExtractPortal()
+  EDGE MoveActionHandler --method [EXTRACTED]--> .ExtractTarget()
+  EDGE MoveActionHandler --method [EXTRACTED]--> .MoveTowards()
+  EDGE MoveActionHandler --method [EXTRACTED]--> .PortalTransition()
+  EDGE MoveActionHandler --method [EXTRACTED]--> .RefreshPOICache()
+  EDGE MoveActionHandler --method [EXTRACTED]--> .TryGetFloat()
+  EDGE MoveActionHandler --method [EXTRACTED]--> .TryGetStr()
+  EDGE MoveActionHandler --method [EXTRACTED]--> .TryPortalTransition()
+  EDGE MoveActionHandler --references [EXTRACTED]--> Dictionary
+  EDGE MoveActionHandler --references [EXTRACTED]--> float
+  EDGE MoveActionHandler --references [EXTRACTED]--> HashSet
+  EDGE MoveActionHandler --references [EXTRACTED]--> string
+  EDGE Move Action Handler --calls [EXTRACTED]--> Biomata POI Data
+  EDGE Move Action Handler --implements [EXTRACTED]--> Action Handler Base
+  EDGE Move Action Handler --calls [EXTRACTED]--> Biomata Agent Component
+  EDGE Move Action Handler --shares_data_with [INFERRED]--> POI Observation Provider
+  EDGE .ExecuteCoroutine() --calls [INFERRED]--> .ExtractTarget()
+  EDGE .ExecuteCoroutine() --references [EXTRACTED]--> AgentDecisionResult
+  EDGE .ExecuteCoroutine() --references [EXTRACTED]--> IEnumerator
+  EDGE .ExecuteCoroutine() --references [EXTRACTED]--> UnityAgentBridge
+  EDGE resolve_poi_target() --imports [EXTRACTED]--> action.py
+  EDGE resolve_poi_target() --calls [EXTRACTED]--> .to_navigate_command()
+  EDGE resolve_poi_target() --contains [EXTRACTED]--> world.py
+  EDGE resolve_poi_target() --calls [EXTRACTED]--> _ensure_3d()
+  EDGE resolve_poi_target() --references [EXTRACTED]--> float
+  EDGE resolve_poi_target() --references [EXTRACTED]--> Any
+  EDGE resolve_poi_target() --references [EXTRACTED]--> str
+  EDGE .to_navigate_command() --method [EXTRACTED]--> MoveAction
+  EDGE .to_navigate_command() --rationale_for [EXTRACTED]--> Build a ``{"type": "navigate", ...}`` engine_command dict.          Preference
+  EDGE Action Handler Base --references [EXTRACTED]--> Action Manifest Validator
+  EDGE Action Handler Base --references [EXTRACTED]--> Biomata Agent Editor
+  EDGE Action Handler Base --semantically_similar_to [INFERRED]--> Biomata Thought Bubble Tools
+  EDGE Action Handler Base --conceptually_related_to [INFERRED]--> Role Manifest Validator
+  EDGE Action Handler Base --calls [EXTRACTED]--> Action Executor
+  EDGE Action Handler Base --references [EXTRACTED]--> Action Manifest Loader
+  EDGE Action Handler Base --implements [EXTRACTED]--> Idle Action Handler
+  EDGE Action Handler Base --implements [EXTRACTED]--> Interact Action Handler
+  EDGE Action Handler Base --implements [EXTRACTED]--> Speak Action Handler
+  EDGE .MoveTowards() --references [EXTRACTED]--> IEnumerator
+  EDGE .MoveTowards() --references [EXTRACTED]--> Transform
+  EDGE .MoveTowards() --references [EXTRACTED]--> Vector3
+  EDGE POI Observation Provider --implements [EXTRACTED]--> Observation Provider Base
+  EDGE .ExtractPortal() --references [EXTRACTED]--> AgentDecisionResult
+  EDGE .ExtractPortal() --references [EXTRACTED]--> BiomataPOIData
+  EDGE str --references [EXTRACTED]--> .collect_commands()
+  EDGE str --references [EXTRACTED]--> .push_metadata()
+  EDGE str --references [EXTRACTED]--> .push_observation()
+  EDGE str --references [EXTRACTED]--> .place_agent()
+  EDGE str --references [EXTRACTED]--> .are_adjacent()
+  EDGE str --references [EXTRACTED]--> .get_nearby_agents()
+  EDGE str --references [EXTRACTED]--> .apply()
+  EDGE str --references [EXTRACTED]--> .metadata()
+  EDGE str --references [EXTRACTED]--> .observe()
+  EDGE str --references [EXTRACTED]--> .get_agent()
+  EDGE str --references [EXTRACTED]--> .get_world_data()
+  EDGE .ExecuteCoroutine() --references [EXTRACTED]--> AgentDecisionResult
+  EDGE .ExecuteCoroutine() --references [EXTRACTED]--> IEnumerator
+  EDGE .ExecuteCoroutine() --references [EXTRACTED]--> UnityAgentBridge
+  EDGE ActionHandlerBase --inherits [EXTRACTED]--> IdleActionHandler
+  EDGE ActionHandlerBase --inherits [EXTRACTED]--> InteractActionHandler
+  EDGE ActionHandlerBase --inherits [EXTRACTED]--> SpeakActionHandler
+  EDGE MoveActionHandler.cs --contains [EXTRACTED]--> Biomata.Integration.Actions
+  EDGE action.py --rationale_for [EXTRACTED]--> src/contracts/action.py ──────────────────────────────── Contracts for the act
+  EDGE action.py --rationale_for [EXTRACTED]--> # IMPORTANT: ActionHint has NO effect on dispatch, validation, or mutation
+  EDGE action.py --contains [EXTRACTED]--> ActionHandler
+  EDGE action.py --contains [EXTRACTED]--> ActionHint
+  EDGE action.py --contains [EXTRACTED]--> ActionResult
+  EDGE action.py --contains [EXTRACTED]--> ActionSchema
+  EDGE action.py --contains [EXTRACTED]--> ActionValidationError
+  EDGE action.py --contains [EXTRACTED]--> Intent
+  EDGE action.py --contains [EXTRACTED]--> MoveAction
+  EDGE action.py --contains [EXTRACTED]--> parse_intent()
+  EDGE action.py --contains [EXTRACTED]--> _parse_param_spec()
+  EDGE action.py --contains [EXTRACTED]--> _render_param_spec()
+  EDGE action.py --contains [EXTRACTED]--> StateMutations
+  EDGE action.py --contains [EXTRACTED]--> _to_float()
+  EDGE action.py --imports_from [EXTRACTED]--> Enum
+  EDGE action.py --imports_from [EXTRACTED]--> brain.py
+  EDGE action.py --re_exports [EXTRACTED]--> __init__.py
+  EDGE action.py --imports_from [EXTRACTED]--> memory.py
+  EDGE Biomata Agent Component --calls [EXTRACTED]--> Interact Action Handler
+  EDGE Biomata Agent Component --calls [EXTRACTED]--> Speak Action Handler
+  EDGE Biomata Agent Component --references [EXTRACTED]--> Agent Ownership Mode Enum
+  EDGE Biomata Agent Component --calls [EXTRACTED]--> Agent Thought Bubble
+  EDGE Biomata Agent Component --calls [EXTRACTED]--> Observation Collector
+  EDGE Biomata Agent Component --calls [EXTRACTED]--> Role Manifest Loader
+  EDGE Biomata Agent Component --calls [EXTRACTED]--> Transform Observation Provider
+  EDGE Biomata Agent Component --conceptually_related_to [INFERRED]--> Unity Agent Bridge
+  EDGE Biomata Agent Component --calls [EXTRACTED]--> Unity Simulation Manager
+  EDGE Biomata POI Data --shares_data_with [INFERRED]--> Observation Client
+  EDGE world.py --imports_from [EXTRACTED]--> brain.py
+  EDGE world.py --rationale_for [EXTRACTED]--> src/contracts/world.py ─────────────────────────────── World and WorldContext
+  EDGE world.py --re_exports [EXTRACTED]--> __init__.py
+  EDGE world.py --contains [EXTRACTED]--> AgentView
+  EDGE world.py --contains [EXTRACTED]--> ExternalWorld
+  EDGE world.py --contains [EXTRACTED]--> parse_poi_traversal()
+  EDGE world.py --contains [EXTRACTED]--> PlaceableWorld
+  EDGE world.py --contains [EXTRACTED]--> POI
+  EDGE world.py --contains [EXTRACTED]--> POITraversal
+  EDGE world.py --contains [EXTRACTED]--> SpatialWorld
+  EDGE world.py --contains [EXTRACTED]--> VisibilityWorld
+  EDGE world.py --contains [EXTRACTED]--> World
+  EDGE world.py --contains [EXTRACTED]--> WorldContext
+  EDGE .PortalTransition() --references [EXTRACTED]--> IEnumerator
+  EDGE .PortalTransition() --references [EXTRACTED]--> Transform
+  EDGE .PortalTransition() --references [EXTRACTED]--> Vector3
+  EDGE .TryPortalTransition() --references [EXTRACTED]--> AgentDecisionResult
+  EDGE .TryPortalTransition() --references [EXTRACTED]--> IEnumerator
+  EDGE .TryPortalTransition() --references [EXTRACTED]--> Transform
+  EDGE _ensure_3d() --rationale_for [EXTRACTED]--> Pad a 2-element [x, z] coordinate list to [x, 0.0, z].
+  EDGE Any --references [EXTRACTED]--> .from_agent()
+  EDGE Any --references [EXTRACTED]--> .collect_commands()
+  EDGE Any --references [EXTRACTED]--> .push_metadata()
+  EDGE Any --references [EXTRACTED]--> .push_observation()
+  EDGE Any --references [EXTRACTED]--> .place_agent()
+  EDGE Any --references [EXTRACTED]--> .metadata()
+  EDGE Any --references [EXTRACTED]--> .observe()
+  EDGE Any --references [EXTRACTED]--> .get_world_data()
+  EDGE .ExtractTarget() --references [EXTRACTED]--> AgentDecisionResult
+  EDGE .ExtractTarget() --references [EXTRACTED]--> Vector3
