@@ -28,6 +28,16 @@ namespace Biomata.SDK.Clients
             CancellationToken                 ct                = default)
             => _transport.TickAsync(agentObservations, worldMetadata, ct);
 
+        /// <summary>
+        /// Run one cognition cycle using a <see cref="TickRequest"/> DTO.
+        /// Equivalent to the flat overload — choose whichever call site reads more clearly.
+        /// </summary>
+        public Task<TickResult> TickAsync(TickRequest request, CancellationToken ct = default)
+        {
+            if (request == null) throw new System.ArgumentNullException(nameof(request));
+            return _transport.TickAsync(request.AgentObservations, request.WorldMetadata, ct);
+        }
+
         /// <summary>Suspend the server's autonomous run loop after the current tick.</summary>
         public Task PauseAsync(CancellationToken ct = default) => _transport.PauseAsync(ct);
 

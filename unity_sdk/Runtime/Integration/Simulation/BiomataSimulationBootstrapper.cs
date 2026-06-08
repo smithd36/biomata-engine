@@ -6,40 +6,39 @@ using UnityEngine;
 namespace Biomata.Integration
 {
     /// <summary>
-    /// Production-ready lifecycle manager for a Biomata simulation session.
+    /// Production-ready lifecycle controller for a Biomata simulation session.
     ///
-    /// Place on any persistent GameObject. The bootstrapper finds or creates a
-    /// <see cref="UnitySimulationManager"/> in the scene, owns the connection and
-    /// tick lifecycle, and exposes a clean Unity-inspector-friendly API.
+    /// Place on any persistent GameObject alongside (or without) a
+    /// <see cref="UnitySimulationManager"/>. The bootstrapper locates or creates a USM,
+    /// forwards <em>all</em> connection configuration to it in Awake, and delegates tick
+    /// scheduling, pause / resume, and event forwarding to the USM — so there is exactly
+    /// one connection manager, one tick driver, and one event dispatcher at runtime.
     ///
-    /// Responsibilities:
-    /// <list type="bullet">
-    ///   <item>Connect / disconnect with optional auto-connect on Start.</item>
-    ///   <item>Auto-tick loop with pause / resume support.</item>
-    ///   <item>Manual <see cref="ForceTick"/> for HUD or test-driven ticking.</item>
-    ///   <item>Automatic reconnect with configurable delay.</item>
-    ///   <item>Host / port / TLS configuration surfaced in the Inspector.</item>
-    ///   <item>Optional debug logging to the Unity Console.</item>
-    /// </list>
+    /// ── Division of responsibility ─────────────────────────────────────────────
+    ///
+    /// | Concern              | Owner  |
+    /// |----------------------|--------|
+    /// | SimulationClient     | USM    |
+    /// | Tick accumulator     | USM    |
+    /// | Event stream wiring  | USM    |
+    /// | Bridge registry      | USM    |
+    /// | Connection config    | BSB → USM (forwarded in Awake) |
+    /// | Auto-reconnect       | BSB    |
+    /// | Tick pause / resume  | BSB → USM (via SetPaused / SetAutoTick) |
+    /// | ScriptableObject cfg | BSB    |
     ///
     /// ── ScriptableObject config ────────────────────────────────────────────────
     ///
     /// Assign a <see cref="BiomataSimulationConfig"/> asset to the <b>Config Asset</b>
     /// slot to drive settings from a shared, version-controlled asset.
-    /// Enable any <b>Override</b> toggle to replace that group's config values
-    /// with the inline Inspector fields for this specific bootstrapper instance.
-    /// When no config asset is assigned, all inline fields are used directly
-    /// (identical to pre-Phase-4 behavior).
+    /// Enable any <b>Override</b> toggle to replace that group's config values with the
+    /// inline Inspector fields for this specific bootstrapper instance.
+    /// When no config asset is assigned, all inline fields are used directly.
     ///
     /// ── Programmatic setup ────────────────────────────────────────────────────
     ///
-    /// Call <see cref="Configure(string,int,float,bool,bool,bool)"/> immediately
-    /// after <c>AddComponent</c> when building the bootstrapper procedurally;
-    /// values are applied in Start.
-    ///
-    /// Subclass <see cref="UnitySimulationManager"/> and override
-    /// <c>BuildWorldMetadata</c> to inject per-tick scene state without touching
-    /// this class.
+    /// Call <see cref="Configure(string,int,float,bool,bool,bool)"/> immediately after
+    /// <c>AddComponent</c>, before <c>Start</c>; values take effect in Awake.
     /// </summary>
     [AddComponentMenu("Biomata/Simulation Bootstrapper")]
     public class BiomataSimulationBootstrapper : MonoBehaviour
@@ -53,23 +52,26 @@ namespace Biomata.Integration
         [SerializeField] private BiomataSimulationConfig config;
 
         // ── Per-group override flags ───────────────────────────────────────────────
-        // These are only meaningful when a config asset is assigned.
-        // When true, the inline Inspector fields for that group take precedence.
 
         [SerializeField] private bool overrideConnection = false;
         [SerializeField] private bool overrideSimulation = false;
         [SerializeField] private bool overrideReconnect  = false;
+        [SerializeField] private bool overrideRetry      = false;
         [SerializeField] private bool overrideDebug      = false;
 
         // ── Inline Inspector fields ────────────────────────────────────────────────
-        // Used directly when no config asset is assigned, or when the matching
-        // override flag is enabled.
 
         [Header("Connection")]
         [SerializeField] private string host                  = "localhost";
         [SerializeField] private int    port                  = 8765;
         [SerializeField] private bool   useTls                = false;
         [SerializeField] private float  connectTimeoutSeconds = 10f;
+
+        [Header("Retry")]
+        [SerializeField] private int   retryMaxAttempts         = 8;
+        [SerializeField] private float retryInitialDelaySeconds = 0.5f;
+        [SerializeField] private float retryMaxDelaySeconds     = 30f;
+        [SerializeField] private float retryMultiplier          = 2f;
 
         [Header("Simulation")]
         [Tooltip("Connect to the backend automatically on Start.")]
@@ -101,20 +103,28 @@ namespace Biomata.Integration
 
         // ── Resolved config ───────────────────────────────────────────────────────
         // Each property returns the config asset's value unless the matching
-        // override flag is true (or no config is assigned).
+        // override flag is true (or no config asset is assigned).
 
-        private bool   HasConfig         => config != null;
-        private string RHost             => (HasConfig && !overrideConnection) ? config.host                  : host;
-        private int    RPort             => (HasConfig && !overrideConnection) ? config.port                  : port;
-        private bool   RUseTls           => (HasConfig && !overrideConnection) ? config.useTls                : useTls;
-        private float  RConnectTimeout   => (HasConfig && !overrideConnection) ? config.connectTimeoutSeconds : connectTimeoutSeconds;
-        private bool   RAutoConnect      => (HasConfig && !overrideSimulation) ? config.autoConnect           : autoConnect;
-        private bool   RAutoTick         => (HasConfig && !overrideSimulation) ? config.autoTick              : autoTick;
-        private float  RTickRate         => (HasConfig && !overrideSimulation) ? config.tickRate              : tickRate;
-        private bool   RTickInFixedUpdate => (HasConfig && !overrideSimulation) ? config.tickInFixedUpdate    : tickInFixedUpdate;
-        private bool   RAutoReconnect    => (HasConfig && !overrideReconnect)  ? config.autoReconnect         : autoReconnect;
-        private float  RReconnectDelay   => (HasConfig && !overrideReconnect)  ? config.reconnectDelay        : reconnectDelay;
-        private bool   RDebugLogging     => (HasConfig && !overrideDebug)      ? config.debugLogging          : debugLogging;
+        private bool   HasConfig          => config != null;
+        private string RHost              => (HasConfig && !overrideConnection) ? config.host                  : host;
+        private int    RPort              => (HasConfig && !overrideConnection) ? config.port                  : port;
+        private bool   RUseTls            => (HasConfig && !overrideConnection) ? config.useTls                : useTls;
+        private float  RConnectTimeout    => (HasConfig && !overrideConnection) ? config.connectTimeoutSeconds : connectTimeoutSeconds;
+        private bool   RAutoConnect       => (HasConfig && !overrideSimulation) ? config.autoConnect           : autoConnect;
+        private bool   RAutoTick          => (HasConfig && !overrideSimulation) ? config.autoTick              : autoTick;
+        private float  RTickRate          => (HasConfig && !overrideSimulation) ? config.tickRate              : tickRate;
+        private bool   RTickInFixedUpdate => (HasConfig && !overrideSimulation) ? config.tickInFixedUpdate     : tickInFixedUpdate;
+        private bool   RAutoReconnect     => (HasConfig && !overrideReconnect)  ? config.autoReconnect         : autoReconnect;
+        private float  RReconnectDelay    => (HasConfig && !overrideReconnect)  ? config.reconnectDelay        : reconnectDelay;
+        private bool   RDebugLogging      => (HasConfig && !overrideDebug)      ? config.debugLogging          : debugLogging;
+
+        // Retry — BiomataSimulationConfig has no retry block; BSB's inline fields
+        // are the authoritative source when BSB is present. overrideRetry is
+        // reserved for future config asset retry support.
+        private int   RRetryMaxAttempts         => retryMaxAttempts;
+        private float RRetryInitialDelaySeconds => retryInitialDelaySeconds;
+        private float RRetryMaxDelaySeconds     => retryMaxDelaySeconds;
+        private float RRetryMultiplier          => retryMultiplier;
 
         // ── Events ────────────────────────────────────────────────────────────────
 
@@ -146,10 +156,10 @@ namespace Biomata.Integration
         public bool IsConnected => Manager?.IsConnected == true;
 
         /// <summary>True when the auto-tick loop is running and not paused.</summary>
-        public bool IsAutoTicking => _autoTicking && !_paused;
+        public bool IsAutoTicking => Manager?.IsAutoTicking == true;
 
         /// <summary>True when the auto-tick loop is suspended via <see cref="SetPaused"/>.</summary>
-        public bool IsPaused => _paused;
+        public bool IsPaused => Manager?.IsPaused == true;
 
         /// <summary>Round-trip duration of the most recent tick, in milliseconds.</summary>
         public float LastTickDurationMs { get; private set; }
@@ -162,7 +172,7 @@ namespace Biomata.Integration
 
         /// <summary>
         /// Assign a config asset at runtime and clear all override flags.
-        /// Call immediately after <c>AddComponent</c>, before <c>Start</c>.
+        /// Call before Awake (e.g. immediately after AddComponent).
         /// </summary>
         public void Configure(BiomataSimulationConfig simulationConfig)
         {
@@ -170,14 +180,13 @@ namespace Biomata.Integration
             overrideConnection = false;
             overrideSimulation = false;
             overrideReconnect  = false;
+            overrideRetry      = false;
             overrideDebug      = false;
         }
 
         /// <summary>
         /// Configure connection and simulation parameters directly at runtime.
-        /// Call immediately after <c>AddComponent</c>, before <c>Start</c>.
-        /// Values are written into the inline fields and all override flags are
-        /// set to <c>true</c> so they win over any assigned config asset.
+        /// Call before Awake (e.g. immediately after AddComponent); values take effect in Awake.
         /// </summary>
         public void Configure(
             string host,
@@ -194,7 +203,6 @@ namespace Biomata.Integration
             this.autoTick     = autoTick;
             this.debugLogging = debugLogging;
 
-            // Programmatic config always wins over any assigned config asset.
             overrideConnection = true;
             overrideSimulation = true;
             overrideDebug      = true;
@@ -209,7 +217,6 @@ namespace Biomata.Integration
         public void Connect()
         {
             if (IsConnected) return;
-            ApplyManagerConfig();
             Log($"Connecting to {RHost}:{RPort}…");
             Manager.Connect();
         }
@@ -228,26 +235,27 @@ namespace Biomata.Integration
 
         // ── Tick control ──────────────────────────────────────────────────────────
 
-        /// <summary>Enable the auto-tick loop. Resets the tick accumulator.</summary>
+        /// <summary>
+        /// Enable the auto-tick loop. Delegates to <see cref="UnitySimulationManager.SetAutoTick"/>.
+        /// </summary>
         public void StartAutoTick()
         {
-            _autoTicking = true;
-            _paused      = false;
-            _tickAccum   = 0f;
+            Manager.SetAutoTick(true);
+            Manager.SetPaused(false);
             Log("Auto-tick started");
         }
 
         /// <summary>Disable the auto-tick loop.</summary>
         public void StopAutoTick()
         {
-            _autoTicking = false;
+            Manager.SetAutoTick(false);
             Log("Auto-tick stopped");
         }
 
         /// <summary>Suspend or resume the auto-tick loop without resetting the accumulator.</summary>
         public void SetPaused(bool paused)
         {
-            _paused = paused;
+            Manager.SetPaused(paused);
             Log(paused ? "Paused" : "Resumed");
         }
 
@@ -258,15 +266,11 @@ namespace Biomata.Integration
         public void ForceTick()
         {
             if (!IsConnected) return;
-            _tickStartTime = Time.realtimeSinceStartup;
             Manager.ForceTick();
         }
 
         // ── Private state ─────────────────────────────────────────────────────────
 
-        private bool  _autoTicking;
-        private bool  _paused;
-        private float _tickAccum;
         private float _tickStartTime;
 
         // ── Unity lifecycle ───────────────────────────────────────────────────────
@@ -283,11 +287,14 @@ namespace Biomata.Integration
                 Manager = go.AddComponent<UnitySimulationManager>();
             }
 
-            // Subscribe now so events are captured regardless of when Start fires.
-            // ApplyManagerConfig() is deferred to Start so that Configure() called
-            // between AddComponent and Start uses the updated field values.
+            // Configure USM here — before USM.Start() fires — so USM never auto-
+            // connects with stale inspector values, and has the correct tick mode
+            // from the first frame.
+            ApplyManagerConfig();
+
             Manager.OnConnected       += HandleConnected;
             Manager.OnDisconnected    += HandleDisconnected;
+            Manager.OnTickStarted     += HandleTickStarted;
             Manager.OnTickComplete    += HandleTickComplete;
             Manager.OnTickError       += HandleTickError;
             Manager.OnSimulationEvent += ev => OnSimulationEvent?.Invoke(ev);
@@ -295,18 +302,7 @@ namespace Biomata.Integration
 
         private void Start()
         {
-            ApplyManagerConfig();
             if (RAutoConnect) Connect();
-        }
-
-        private void FixedUpdate()
-        {
-            if (RTickInFixedUpdate) AccumulateAndTick(Time.fixedDeltaTime);
-        }
-
-        private void Update()
-        {
-            if (!RTickInFixedUpdate) AccumulateAndTick(Time.deltaTime);
         }
 
         private void OnDestroy()
@@ -314,6 +310,7 @@ namespace Biomata.Integration
             if (Manager == null) return;
             Manager.OnConnected       -= HandleConnected;
             Manager.OnDisconnected    -= HandleDisconnected;
+            Manager.OnTickStarted     -= HandleTickStarted;
             Manager.OnTickComplete    -= HandleTickComplete;
             Manager.OnTickError       -= HandleTickError;
         }
@@ -322,22 +319,33 @@ namespace Biomata.Integration
 
         private void ApplyManagerConfig()
         {
-            Manager.Configure(RHost, RPort, autoConnect: false);
-            Manager.SetTickMode(TickMode.External);
-        }
+            // Forward the full resolved config to USM so BuildConfig() reads the correct
+            // values at connect time — this fixes the silent-ignore bug where useTls and
+            // connectTimeoutSeconds were never forwarded from BSB to USM.
+            Manager.Configure(
+                host:                   RHost,
+                port:                   RPort,
+                useTls:                 RUseTls,
+                connectTimeoutSeconds:  RConnectTimeout,
+                retryMaxAttempts:       RRetryMaxAttempts,
+                retryInitialDelaySeconds: RRetryInitialDelaySeconds,
+                retryMaxDelaySeconds:   RRetryMaxDelaySeconds,
+                retryMultiplier:        RRetryMultiplier,
+                tickRate:               RTickRate,
+                tickInFixedUpdate:      RTickInFixedUpdate,
+                autoConnect:            false);   // BSB owns connection; suppress USM.Start() auto-connect
 
-        private void AccumulateAndTick(float dt)
-        {
-            if (!_autoTicking || _paused || !IsConnected) return;
+            // BSB delegates tick scheduling to USM's internal loop (one update path,
+            // one accumulator). SetTickMode must be called before USM.Start() fires,
+            // which is why ApplyManagerConfig lives in Awake.
+            Manager.SetTickMode(TickMode.Internal);
+            Manager.SetAutoTick(false);    // will be enabled in HandleConnected when autoTick=true
+            Manager.SetPaused(false);
 
-            _tickAccum += dt;
-            float rate     = RTickRate;
-            float interval = rate > 0f ? 1f / rate : float.Epsilon;
-            if (_tickAccum < interval) return;
-
-            _tickAccum     = 0f;
-            _tickStartTime = Time.realtimeSinceStartup;
-            Manager.ForceTick();
+            // BSB owns reconnect; suppress USM's standalone reconnect so only one
+            // reconnect path is active at a time.
+            // (USM.autoReconnect is an inspector field that stays as-is from USM's
+            //  inspector — if BSB is present, users should configure reconnect on BSB.)
         }
 
         private IEnumerator ReconnectCoroutine(float delay)
@@ -357,15 +365,14 @@ namespace Biomata.Integration
 
         private void HandleDisconnected()
         {
-            _autoTicking = false;
-            _paused      = false;
             Log("Disconnected");
-
-            if (RAutoReconnect)
-                Reconnect();
-
+            // USM.NotifyDisconnected() already set _autoTicking=false; nothing to do here.
+            if (RAutoReconnect) Reconnect();
             OnDisconnected?.Invoke();
         }
+
+        private void HandleTickStarted() =>
+            _tickStartTime = Time.realtimeSinceStartup;
 
         private void HandleTickComplete(TickResult result)
         {

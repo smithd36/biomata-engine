@@ -1,8 +1,6 @@
 // Biomata.SDK — SnapshotData.cs
 // Holds a serialized simulation snapshot returned by SnapshotClient.
 
-using System;
-
 namespace Biomata.SDK.Models
 {
     /// <summary>
@@ -34,19 +32,5 @@ namespace Biomata.SDK.Models
             IsFromFile
                 ? $"SnapshotData [file: {FilePath}]"
                 : $"SnapshotData [tick={Tick}, created={CreatedAt}]";
-    }
-
-    /// <summary>Server health status returned by HealthClient.</summary>
-    public class HealthStatus
-    {
-        public string Status       { get; set; }
-        public string SessionState { get; set; }
-        public int    Tick         { get; set; }
-        public int    AgentCount   { get; set; }
-
-        public bool IsOk => string.Equals(Status, "ok", StringComparison.OrdinalIgnoreCase);
-
-        public override string ToString() =>
-            $"Health[{Status}] tick={Tick} agents={AgentCount} session={SessionState}";
     }
 }

@@ -1,0 +1,17 @@
+{
+    "name": "BiomataSamples",
+    "rootNamespace": "Biomata.Samples",
+    "references": [
+        "BiomataSDK",
+        "BiomataIntegration"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

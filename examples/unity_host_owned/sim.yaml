@@ -1,0 +1,22 @@
+engine:
+  ticks: 99999
+  seed:  1
+  scheduler: simultaneous
+
+world:
+  class: src.plugins.external.world.HostedWorld
+
+registry:
+  class: src.plugins.unity_host_owned.registry.build_registry
+
+roles:
+  Villager:
+    capabilities: [social]
+    brain:
+      provider: ollama
+      config:
+        model: qwen2.5:14b
+    observations:
+      - position
+      - nearby_food
+      - hunger

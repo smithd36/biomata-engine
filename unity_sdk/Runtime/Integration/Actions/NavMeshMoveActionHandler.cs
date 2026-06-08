@@ -58,15 +58,6 @@ namespace Biomata.Integration.Actions
             ? _navAgent
             : (_navAgent = GetComponent<NavMeshAgent>());
 
-        // ── ActionHandlerBase contract ────────────────────────────────────────
-
-        public override IReadOnlyCollection<string> DeclaredActionNames => _handledActions;
-
-        private static readonly string[] _handledActions =
-        {
-            "move", "walk", "navigate", "go", "travel", "follow", "flee",
-        };
-
         // ── Execution ─────────────────────────────────────────────────────────
 
         public override IEnumerator ExecuteCoroutine(AgentDecisionResult decision, UnityAgentBridge bridge)

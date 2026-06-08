@@ -35,6 +35,30 @@ namespace Biomata.SDK
         /// <summary>WebSocket address derived from Host, Port, and UseTls.</summary>
         public string Address => $"{(UseTls ? "wss" : "ws")}://{Host}:{Port}";
 
+        /// <summary>
+        /// Build a <see cref="BiomataConfig"/> from flat inspector-serialized fields.
+        /// Use this instead of copy-pasting object initializers across MonoBehaviour wrappers.
+        /// Pass <c>null</c> for <paramref name="retry"/> to use the default <see cref="RetryConfig"/>.
+        /// </summary>
+        public static BiomataConfig FromInspector(
+            string      host,
+            int         port,
+            bool        useTls                    = false,
+            float       connectTimeoutSeconds     = 10f,
+            float       defaultCallTimeoutSeconds = 30f,
+            RetryConfig retry                     = null)
+        {
+            return new BiomataConfig
+            {
+                Host                      = host,
+                Port                      = port,
+                UseTls                    = useTls,
+                ConnectTimeoutSeconds     = connectTimeoutSeconds,
+                DefaultCallTimeoutSeconds = defaultCallTimeoutSeconds,
+                Retry                     = retry ?? new RetryConfig(),
+            };
+        }
+
         public TimeSpan ConnectTimeout    => TimeSpan.FromSeconds(ConnectTimeoutSeconds);
         public TimeSpan DefaultCallTimeout => DefaultCallTimeoutSeconds > 0
             ? TimeSpan.FromSeconds(DefaultCallTimeoutSeconds)

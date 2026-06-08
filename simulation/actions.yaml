@@ -122,3 +122,13 @@ actions:
     required_capabilities: [social]
     engine_command: navigate
     kind: host
+
+  # ── Personal actions ─────────────────────────────────────────────────────────
+
+  - name: eat
+    description: Consume a nearby food item to restore energy.
+    parameters:
+      target: str        # name of the food item or source
+    required_capabilities: [survival]   # or omit if all agents can eat
+    engine_command: eat
+    kind: hybrid

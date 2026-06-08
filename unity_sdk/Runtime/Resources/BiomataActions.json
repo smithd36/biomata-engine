@@ -6,7 +6,7 @@
       "description": "Do nothing this tick. Rest or wait in place.",
       "parameters": {},
       "required_capabilities": [],
-      "kind": "engine"
+      "execution_hint": "engine"
     },
     {
       "name": "move",
@@ -16,7 +16,7 @@
         "speed": "float?"
       },
       "required_capabilities": [],
-      "kind": "host"
+      "execution_hint": "host"
     },
     {
       "name": "speak",
@@ -26,7 +26,7 @@
         "target": "str?"
       },
       "required_capabilities": [],
-      "kind": "hybrid"
+      "execution_hint": "hybrid"
     },
     {
       "name": "interact",
@@ -36,7 +36,7 @@
         "interaction_type": "str?"
       },
       "required_capabilities": [],
-      "kind": "hybrid"
+      "execution_hint": "hybrid"
     },
     {
       "name": "patrol",
@@ -48,7 +48,7 @@
         "guard",
         "patrol"
       ],
-      "kind": "host"
+      "execution_hint": "host"
     },
     {
       "name": "alert",
@@ -61,7 +61,7 @@
         "authority",
         "guard"
       ],
-      "kind": "hybrid"
+      "execution_hint": "hybrid"
     },
     {
       "name": "detain",
@@ -73,7 +73,7 @@
       "required_capabilities": [
         "authority"
       ],
-      "kind": "hybrid"
+      "execution_hint": "hybrid"
     },
     {
       "name": "trade",
@@ -87,7 +87,7 @@
         "merchant",
         "trade"
       ],
-      "kind": "hybrid"
+      "execution_hint": "hybrid"
     },
     {
       "name": "greet",
@@ -98,7 +98,7 @@
       "required_capabilities": [
         "social"
       ],
-      "kind": "hybrid"
+      "execution_hint": "hybrid"
     },
     {
       "name": "follow",
@@ -109,7 +109,18 @@
       "required_capabilities": [
         "social"
       ],
-      "kind": "host"
+      "execution_hint": "host"
+    },
+    {
+      "name": "eat",
+      "description": "Consume a nearby food item to restore energy.",
+      "parameters": {
+        "target": "str"
+      },
+      "required_capabilities": [
+        "survival"
+      ],
+      "execution_hint": "hybrid"
     }
   ]
 }

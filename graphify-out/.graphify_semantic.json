@@ -1,0 +1,1168 @@
+{
+  "nodes": [
+    {
+      "id": "contributing_md",
+      "label": "CONTRIBUTING.md",
+      "file_type": "document",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "plugin_architecture",
+      "label": "Plugin Architecture (Python Protocol Classes)",
+      "file_type": "rationale",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 50",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Uses Python Protocol classes as interfaces so contributors can extend any layer (brain, world, action, memory, observation) without modifying core engine code."
+    },
+    {
+      "id": "brain_contract",
+      "label": "Brain Contract (src/contracts/brain.py)",
+      "file_type": "rationale",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 55",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "world_contract",
+      "label": "World Contract (src/contracts/world.py)",
+      "file_type": "rationale",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 56",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "actionhandler_contract",
+      "label": "ActionHandler Contract (src/contracts/action.py)",
+      "file_type": "rationale",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 57",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "memory_contract",
+      "label": "Memory Contract (src/contracts/memory.py)",
+      "file_type": "rationale",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 58",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "observationprovider_contract",
+      "label": "ObservationProvider Contract (src/contracts/observation.py)",
+      "file_type": "rationale",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 59",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "idle_brain",
+      "label": "IdleBrain Plugin",
+      "file_type": "code",
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 33",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "engine_owned_sim",
+      "label": "Engine-Owned sim.yaml",
+      "file_type": "document",
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "hosted_world",
+      "label": "HostedWorld Plugin",
+      "file_type": "code",
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 35",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "ollama_registry",
+      "label": "build_hosted_registry (Ollama Registry)",
+      "file_type": "code",
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 37",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "engine_owned_pattern",
+      "label": "Engine-Owned Ownership Pattern",
+      "file_type": "rationale",
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 3",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Backend declares all agents; Unity binds visual shells via BindToExisting. Simulation is source of truth, ticks before Unity connects, supports multiple Unity spectator clients."
+    },
+    {
+      "id": "bind_to_existing_mode",
+      "label": "BindToExisting Ownership Mode",
+      "file_type": "rationale",
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 21",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "BiomataAgent mode where Unity binds a visual shell to a backend-declared agent without sending a registration RPC."
+    },
+    {
+      "id": "engine_owned_manager",
+      "label": "EngineOwnedManager Unity Sample",
+      "file_type": "code",
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 23",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "biomata_agent",
+      "label": "BiomataAgent Unity Component",
+      "file_type": "code",
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 19",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "role_guard",
+      "label": "Guard Role",
+      "file_type": "rationale",
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 47",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "role_merchant",
+      "label": "Merchant Role",
+      "file_type": "rationale",
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 55",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "role_villager",
+      "label": "Villager Role",
+      "file_type": "rationale",
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 61",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "host_owned_sim",
+      "label": "Host-Owned sim.yaml",
+      "file_type": "document",
+      "source_file": "examples/host_owned/sim.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "ollama_brain",
+      "label": "OllamaLLMBrain Plugin",
+      "file_type": "code",
+      "source_file": "examples/host_owned/sim.yaml",
+      "source_location": "line 51",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "host_owned_pattern",
+      "label": "Host-Owned Ownership Pattern",
+      "file_type": "rationale",
+      "source_file": "examples/host_owned/sim.yaml",
+      "source_location": "line 3",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "Backend starts empty; Unity owns full agent lifecycle via CreateAtRuntime. Enables procedural spawning, runtime roster changes, and zero-downtime brain hot-swap."
+    },
+    {
+      "id": "create_at_runtime_mode",
+      "label": "CreateAtRuntime Ownership Mode",
+      "file_type": "rationale",
+      "source_file": "examples/host_owned/sim.yaml",
+      "source_location": "line 19",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "rationale": "BiomataAgent mode where Unity registers and unregisters agents dynamically, making the backend a pure execution engine."
+    },
+    {
+      "id": "host_owned_manager",
+      "label": "HostOwnedManager Unity Sample",
+      "file_type": "code",
+      "source_file": "examples/host_owned/sim.yaml",
+      "source_location": "line 20",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "actions_yaml",
+      "label": "Canonical Action Manifest (actions.yaml)",
+      "file_type": "document",
+      "source_file": "simulation/actions.yaml",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "action_manifest_class",
+      "label": "ActionManifest Python Class",
+      "file_type": "code",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 12",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "biomata_actions_json",
+      "label": "BiomataActions.json (Generated Unity Sidecar)",
+      "file_type": "document",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 15",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "action_idle",
+      "label": "idle Action",
+      "file_type": "rationale",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 40",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "action_move",
+      "label": "move Action",
+      "file_type": "rationale",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 44",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "action_speak",
+      "label": "speak Action",
+      "file_type": "rationale",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 51",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "action_interact",
+      "label": "interact Action",
+      "file_type": "rationale",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 58",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "action_patrol",
+      "label": "patrol Action",
+      "file_type": "rationale",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 68",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "action_alert",
+      "label": "alert Action",
+      "file_type": "rationale",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 76",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "action_detain",
+      "label": "detain Action",
+      "file_type": "rationale",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 84",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "action_trade",
+      "label": "trade Action",
+      "file_type": "rationale",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 94",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "action_greet",
+      "label": "greet Action",
+      "file_type": "rationale",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 103",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "action_follow",
+      "label": "follow Action",
+      "file_type": "rationale",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 111",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "capability_guard",
+      "label": "guard Capability",
+      "file_type": "rationale",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 74",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "capability_authority",
+      "label": "authority Capability",
+      "file_type": "rationale",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 82",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "capability_trade",
+      "label": "trade Capability",
+      "file_type": "rationale",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 103",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "capability_social",
+      "label": "social Capability",
+      "file_type": "rationale",
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 107",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "unity_sdk_generated_readme",
+      "label": "Runtime/Generated README",
+      "file_type": "document",
+      "source_file": "unity_sdk/Runtime/Generated/README.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    },
+    {
+      "id": "websocket_protocol_server",
+      "label": "WebSocket Protocol Server (src/transport/websocket/protocol.py)",
+      "file_type": "code",
+      "source_file": "unity_sdk/Runtime/Generated/README.md",
+      "source_location": "line 9",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null
+    }
+  ],
+  "edges": [
+    {
+      "source": "contributing_md",
+      "target": "plugin_architecture",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 50",
+      "weight": 1.0
+    },
+    {
+      "source": "contributing_md",
+      "target": "brain_contract",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 55",
+      "weight": 1.0
+    },
+    {
+      "source": "contributing_md",
+      "target": "world_contract",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 56",
+      "weight": 1.0
+    },
+    {
+      "source": "contributing_md",
+      "target": "actionhandler_contract",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 57",
+      "weight": 1.0
+    },
+    {
+      "source": "contributing_md",
+      "target": "memory_contract",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 58",
+      "weight": 1.0
+    },
+    {
+      "source": "contributing_md",
+      "target": "observationprovider_contract",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 59",
+      "weight": 1.0
+    },
+    {
+      "source": "contributing_md",
+      "target": "idle_brain",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 33",
+      "weight": 1.0
+    },
+    {
+      "source": "idle_brain",
+      "target": "brain_contract",
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 55",
+      "weight": 1.0
+    },
+    {
+      "source": "plugin_architecture",
+      "target": "brain_contract",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 50",
+      "weight": 1.0
+    },
+    {
+      "source": "plugin_architecture",
+      "target": "world_contract",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 50",
+      "weight": 1.0
+    },
+    {
+      "source": "plugin_architecture",
+      "target": "actionhandler_contract",
+      "relation": "rationale_for",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "CONTRIBUTING.md",
+      "source_location": "line 50",
+      "weight": 1.0
+    },
+    {
+      "source": "hosted_world",
+      "target": "world_contract",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 35",
+      "weight": 1.0
+    },
+    {
+      "source": "engine_owned_sim",
+      "target": "hosted_world",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 35",
+      "weight": 1.0
+    },
+    {
+      "source": "engine_owned_sim",
+      "target": "ollama_registry",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 37",
+      "weight": 1.0
+    },
+    {
+      "source": "engine_owned_sim",
+      "target": "idle_brain",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 50",
+      "weight": 1.0
+    },
+    {
+      "source": "engine_owned_sim",
+      "target": "engine_owned_pattern",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 3",
+      "weight": 1.0
+    },
+    {
+      "source": "engine_owned_sim",
+      "target": "bind_to_existing_mode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 21",
+      "weight": 1.0
+    },
+    {
+      "source": "engine_owned_sim",
+      "target": "engine_owned_manager",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 23",
+      "weight": 1.0
+    },
+    {
+      "source": "engine_owned_sim",
+      "target": "biomata_agent",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 19",
+      "weight": 1.0
+    },
+    {
+      "source": "engine_owned_sim",
+      "target": "role_guard",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 47",
+      "weight": 1.0
+    },
+    {
+      "source": "engine_owned_sim",
+      "target": "role_merchant",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 55",
+      "weight": 1.0
+    },
+    {
+      "source": "engine_owned_sim",
+      "target": "role_villager",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 61",
+      "weight": 1.0
+    },
+    {
+      "source": "role_guard",
+      "target": "capability_guard",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 48",
+      "weight": 1.0
+    },
+    {
+      "source": "role_guard",
+      "target": "capability_authority",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 48",
+      "weight": 1.0
+    },
+    {
+      "source": "role_merchant",
+      "target": "capability_trade",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 56",
+      "weight": 1.0
+    },
+    {
+      "source": "role_merchant",
+      "target": "capability_social",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 56",
+      "weight": 1.0
+    },
+    {
+      "source": "role_villager",
+      "target": "capability_social",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 62",
+      "weight": 1.0
+    },
+    {
+      "source": "engine_owned_pattern",
+      "target": "bind_to_existing_mode",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": "line 7",
+      "weight": 1.0
+    },
+    {
+      "source": "engine_owned_pattern",
+      "target": "host_owned_pattern",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": null,
+      "weight": 0.75
+    },
+    {
+      "source": "bind_to_existing_mode",
+      "target": "create_at_runtime_mode",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "examples/engine_owned/sim.yaml",
+      "source_location": null,
+      "weight": 0.75
+    },
+    {
+      "source": "ollama_brain",
+      "target": "brain_contract",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "examples/host_owned/sim.yaml",
+      "source_location": "line 51",
+      "weight": 1.0
+    },
+    {
+      "source": "host_owned_sim",
+      "target": "hosted_world",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/host_owned/sim.yaml",
+      "source_location": "line 35",
+      "weight": 1.0
+    },
+    {
+      "source": "host_owned_sim",
+      "target": "ollama_registry",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/host_owned/sim.yaml",
+      "source_location": "line 45",
+      "weight": 1.0
+    },
+    {
+      "source": "host_owned_sim",
+      "target": "ollama_brain",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/host_owned/sim.yaml",
+      "source_location": "line 51",
+      "weight": 1.0
+    },
+    {
+      "source": "host_owned_sim",
+      "target": "host_owned_pattern",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/host_owned/sim.yaml",
+      "source_location": "line 3",
+      "weight": 1.0
+    },
+    {
+      "source": "host_owned_sim",
+      "target": "create_at_runtime_mode",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/host_owned/sim.yaml",
+      "source_location": "line 19",
+      "weight": 1.0
+    },
+    {
+      "source": "host_owned_sim",
+      "target": "host_owned_manager",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/host_owned/sim.yaml",
+      "source_location": "line 20",
+      "weight": 1.0
+    },
+    {
+      "source": "host_owned_sim",
+      "target": "biomata_agent",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/host_owned/sim.yaml",
+      "source_location": "line 18",
+      "weight": 1.0
+    },
+    {
+      "source": "host_owned_pattern",
+      "target": "create_at_runtime_mode",
+      "relation": "conceptually_related_to",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/host_owned/sim.yaml",
+      "source_location": "line 6",
+      "weight": 1.0
+    },
+    {
+      "source": "actions_yaml",
+      "target": "action_manifest_class",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 12",
+      "weight": 1.0
+    },
+    {
+      "source": "action_manifest_class",
+      "target": "biomata_actions_json",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 15",
+      "weight": 1.0
+    },
+    {
+      "source": "actions_yaml",
+      "target": "biomata_actions_json",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 9",
+      "weight": 1.0
+    },
+    {
+      "source": "actions_yaml",
+      "target": "action_idle",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 40",
+      "weight": 1.0
+    },
+    {
+      "source": "actions_yaml",
+      "target": "action_move",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 44",
+      "weight": 1.0
+    },
+    {
+      "source": "actions_yaml",
+      "target": "action_speak",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 51",
+      "weight": 1.0
+    },
+    {
+      "source": "actions_yaml",
+      "target": "action_interact",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 58",
+      "weight": 1.0
+    },
+    {
+      "source": "actions_yaml",
+      "target": "action_patrol",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 68",
+      "weight": 1.0
+    },
+    {
+      "source": "actions_yaml",
+      "target": "action_alert",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 76",
+      "weight": 1.0
+    },
+    {
+      "source": "actions_yaml",
+      "target": "action_detain",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 84",
+      "weight": 1.0
+    },
+    {
+      "source": "actions_yaml",
+      "target": "action_trade",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 94",
+      "weight": 1.0
+    },
+    {
+      "source": "actions_yaml",
+      "target": "action_greet",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 103",
+      "weight": 1.0
+    },
+    {
+      "source": "actions_yaml",
+      "target": "action_follow",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 111",
+      "weight": 1.0
+    },
+    {
+      "source": "action_patrol",
+      "target": "capability_guard",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 74",
+      "weight": 1.0
+    },
+    {
+      "source": "action_alert",
+      "target": "capability_guard",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 82",
+      "weight": 1.0
+    },
+    {
+      "source": "action_alert",
+      "target": "capability_authority",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 82",
+      "weight": 1.0
+    },
+    {
+      "source": "action_detain",
+      "target": "capability_authority",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 91",
+      "weight": 1.0
+    },
+    {
+      "source": "action_trade",
+      "target": "capability_trade",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 103",
+      "weight": 1.0
+    },
+    {
+      "source": "action_greet",
+      "target": "capability_social",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 110",
+      "weight": 1.0
+    },
+    {
+      "source": "action_follow",
+      "target": "capability_social",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml",
+      "source_location": "line 117",
+      "weight": 1.0
+    },
+    {
+      "source": "actions_yaml",
+      "target": "biomata_actions_json",
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "simulation/actions.yaml",
+      "source_location": null,
+      "weight": 0.85
+    },
+    {
+      "source": "unity_sdk_generated_readme",
+      "target": "websocket_protocol_doc",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "unity_sdk/Runtime/Generated/README.md",
+      "source_location": "line 8",
+      "weight": 1.0
+    },
+    {
+      "source": "unity_sdk_generated_readme",
+      "target": "websocket_protocol_server",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "unity_sdk/Runtime/Generated/README.md",
+      "source_location": "line 9",
+      "weight": 1.0
+    },
+    {
+      "source": "unity_sdk_generated_readme",
+      "target": "websocket_transport",
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "unity_sdk/Runtime/Generated/README.md",
+      "source_location": "line 9",
+      "weight": 1.0
+    },
+    {
+      "source": "websocket_transport",
+      "target": "websocket_protocol_doc",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "unity_sdk/Runtime/Generated/README.md",
+      "source_location": "line 9",
+      "weight": 1.0
+    },
+    {
+      "source": "websocket_protocol_server",
+      "target": "websocket_protocol_doc",
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "unity_sdk/Runtime/Generated/README.md",
+      "source_location": "line 8",
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "engine_owned_workflow",
+      "label": "Engine-Owned Agent Lifecycle Workflow",
+      "nodes": [
+        "engine_owned_pattern",
+        "bind_to_existing_mode",
+        "engine_owned_manager",
+        "biomata_agent"
+      ],
+      "relation": "implement",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/engine_owned/sim.yaml"
+    },
+    {
+      "id": "host_owned_workflow",
+      "label": "Host-Owned Agent Lifecycle Workflow",
+      "nodes": [
+        "host_owned_pattern",
+        "create_at_runtime_mode",
+        "host_owned_manager",
+        "biomata_agent"
+      ],
+      "relation": "implement",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "examples/host_owned/sim.yaml"
+    },
+    {
+      "id": "action_validation_pipeline",
+      "label": "Action Validation Pipeline",
+      "nodes": [
+        "actions_yaml",
+        "action_manifest_class",
+        "biomata_actions_json"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "simulation/actions.yaml"
+    }
+  ],
+  "input_tokens": 0,
+  "output_tokens": 0
+}

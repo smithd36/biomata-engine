@@ -1,28 +1,10 @@
 using System;
 using System.Collections.Generic;
+using Biomata.SDK.Models;
 using UnityEngine;
 
 namespace Biomata.Integration.Actions
 {
-    // ── Wire types (match BiomataActions.json shape) ──────────────────────────
-
-    [Serializable]
-    public class ManifestActionEntry
-    {
-        public string   name;
-        public string   description;
-        public string   kind;
-        public string[] required_capabilities;
-        // 'parameters' is omitted — it is metadata for humans and Python validation only.
-    }
-
-    [Serializable]
-    public class ManifestData
-    {
-        public string               version;
-        public ManifestActionEntry[] actions;
-    }
-
     /// <summary>
     /// Loads BiomataActions.json from a Unity Resources folder at runtime.
     ///
@@ -35,6 +17,9 @@ namespace Biomata.Integration.Actions
     ///
     /// Commit the generated file. Unity reads it via Resources.Load at runtime
     /// and the editor validator reads it via Biomata > Validate Action Manifest.
+    ///
+    /// Data types for the manifest are in <see cref="Biomata.SDK.Models"/>:
+    ///   <see cref="ManifestData"/> and <see cref="ManifestActionEntry"/>.
     /// </summary>
     public static class ActionManifestLoader
     {
@@ -107,3 +92,4 @@ namespace Biomata.Integration.Actions
         public static void ClearCache() => _cache = null;
     }
 }
+

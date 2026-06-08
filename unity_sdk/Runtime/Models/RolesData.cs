@@ -1,6 +1,13 @@
 // Biomata.SDK — RolesData.cs
 // Wire types for the roles.list RPC response.
 // Matches the shape of the backend roles: block in sim.yaml.
+//
+// Note: RoleEntry and RolesData intentionally use [Serializable] + public fields
+// rather than auto-properties. RoleManifestLoader.Load() uses JsonUtility.FromJson<>
+// for the offline/editor fallback, and JsonUtility requires public fields on
+// [Serializable] classes (it ignores properties). The RPC path (WebSocketTransport)
+// still populates these manually via JObject parsing, so the serialization style
+// has no effect on wire compatibility.
 
 using System;
 

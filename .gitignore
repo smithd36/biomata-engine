@@ -102,6 +102,8 @@ config.local.yaml
 graphify-out/cache
 graphify-out/.graphify_python
 graphify-out/manifest.json
+graphify-out/cost.json
+unity_sdk/graphify-out/
 
 # LLM / model cache
 .ollama/

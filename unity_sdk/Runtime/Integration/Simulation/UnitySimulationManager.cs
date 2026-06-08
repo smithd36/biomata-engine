@@ -2,8 +2,10 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 using Biomata.Integration.Simulation;
 using Biomata.SDK;
+using Biomata.SDK.Clients;
 using Biomata.SDK.Models;
 using UnityEngine;
 
@@ -51,10 +53,29 @@ namespace Biomata.Integration
         // ── Inspector ─────────────────────────────────────────────────────────────
 
         [Header("Connection")]
-        [SerializeField] private string        host               = "localhost";
-        [SerializeField] private int           port               = 8765;
-        [SerializeField] private bool          useTls             = false;
-        [SerializeField] private float         connectTimeoutSeconds = 10f;
+        [SerializeField] private string host                  = "localhost";
+        [SerializeField] private int    port                  = 8765;
+        [SerializeField] private bool   useTls                = false;
+        [SerializeField] private float  connectTimeoutSeconds = 10f;
+
+        [Tooltip("Default per-call deadline in seconds. 0 = no deadline.")]
+        [SerializeField] private float  defaultCallTimeoutSeconds = 30f;
+
+        [Header("Retry")]
+        [SerializeField] private int   retryMaxAttempts         = 8;
+        [SerializeField] private float retryInitialDelaySeconds = 0.5f;
+        [SerializeField] private float retryMaxDelaySeconds     = 30f;
+        [SerializeField] private float retryMultiplier          = 2f;
+
+        [Header("Event Subscriptions")]
+        [Tooltip("Subscribe to tick_end events on the event stream.")]
+        [SerializeField] private bool subscribeTickEnd = true;
+
+        [Tooltip("Subscribe to action_completed events on the event stream.")]
+        [SerializeField] private bool subscribeActionCompleted = true;
+
+        [Tooltip("Start event streaming automatically after connecting.")]
+        [SerializeField] private bool autoStartEventStream = true;
 
         [Header("Simulation")]
         [Tooltip("Connect to the backend automatically on scene start.")]
@@ -69,6 +90,13 @@ namespace Biomata.Integration
         [Min(0f)]
         [SerializeField] private float tickRate = 2f;
 
+        [Header("Reconnect")]
+        [Tooltip("Automatically reconnect after an unexpected disconnect (standalone use without Bootstrapper).")]
+        [SerializeField] private bool  autoReconnect  = false;
+        [Tooltip("Seconds to wait before reattempting connection after a drop.")]
+        [Min(0f)]
+        [SerializeField] private float reconnectDelay = 3f;
+
         [Header("World Context")]
         [Tooltip("Optional scene name injected into every tick's world metadata.")]
         [SerializeField] private string worldName = "";
@@ -76,19 +104,35 @@ namespace Biomata.Integration
         /// <summary>
         /// Configure connection parameters at runtime (call immediately after AddComponent, before Start).
         ///
-        /// Use this instead of reflection when building the manager procedurally. Values
-        /// set here are read by Start() on the next frame, before any auto-connect attempt.
+        /// When <see cref="BiomataSimulationBootstrapper"/> is present it calls this in its own
+        /// Awake — before USM.Start() fires — so USM never sees stale inspector values.
         /// </summary>
         public void Configure(
             string host,
             int    port,
-            float  tickRate    = 2f,
-            bool   autoConnect = true)
+            bool   useTls                    = false,
+            float  connectTimeoutSeconds     = 10f,
+            float  defaultCallTimeoutSeconds = 30f,
+            int    retryMaxAttempts          = 8,
+            float  retryInitialDelaySeconds  = 0.5f,
+            float  retryMaxDelaySeconds      = 30f,
+            float  retryMultiplier           = 2f,
+            float  tickRate                  = 2f,
+            bool   tickInFixedUpdate         = true,
+            bool   autoConnect               = true)
         {
-            this.host        = host;
-            this.port        = port;
-            this.tickRate    = tickRate;
-            this.autoConnect = autoConnect;
+            this.host                      = host;
+            this.port                      = port;
+            this.useTls                    = useTls;
+            this.connectTimeoutSeconds     = connectTimeoutSeconds;
+            this.defaultCallTimeoutSeconds = defaultCallTimeoutSeconds;
+            this.retryMaxAttempts          = retryMaxAttempts;
+            this.retryInitialDelaySeconds  = retryInitialDelaySeconds;
+            this.retryMaxDelaySeconds      = retryMaxDelaySeconds;
+            this.retryMultiplier           = retryMultiplier;
+            this.tickRate                  = tickRate;
+            this.tickInFixedUpdate         = tickInFixedUpdate;
+            this.autoConnect               = autoConnect;
         }
 
         // ── Events ────────────────────────────────────────────────────────────────
@@ -108,6 +152,25 @@ namespace Biomata.Integration
         /// <summary>Forwarded from the event stream for every engine event.</summary>
         public event Action<SimulationEvent> OnSimulationEvent;
 
+        /// <summary>Raised on each <c>tick_end</c> event (requires <see cref="subscribeTickEnd"/>).</summary>
+        public event Action<SimulationEvent> OnTickEnd;
+
+        /// <summary>Raised on each <c>action_completed</c> event (requires <see cref="subscribeActionCompleted"/>).</summary>
+        public event Action<SimulationEvent> OnActionCompleted;
+
+        /// <summary>Raised when the event stream disconnects unexpectedly.</summary>
+        public event Action<Exception> OnStreamDisconnected;
+
+        /// <summary>Raised when the event stream exhausts reconnect attempts.</summary>
+        public event Action<BiomataException> OnStreamFailed;
+
+        /// <summary>
+        /// Fired on the main thread immediately before a tick coroutine starts.
+        /// Subscribe here (e.g. in <see cref="BiomataSimulationBootstrapper"/>) to
+        /// timestamp the start of each tick for latency measurement.
+        /// </summary>
+        public event Action OnTickStarted;
+
         // ── Public API ────────────────────────────────────────────────────────────
 
         /// <summary>The active singleton, or <c>null</c> before first Awake.</summary>
@@ -123,6 +186,12 @@ namespace Biomata.Integration
         /// <summary>True when the channel is open and the server is responding.</summary>
         public bool IsConnected => Client?.IsConnected == true;
 
+        /// <summary>True when the internal tick loop is enabled and not paused.</summary>
+        public bool IsAutoTicking => _autoTicking && !_paused;
+
+        /// <summary>True when ticks are temporarily suppressed via <see cref="SetPaused"/>.</summary>
+        public bool IsPaused => _paused;
+
         /// <summary>Tick number from the most recent successful tick response.</summary>
         public int LastTick { get; private set; }
 
@@ -136,9 +205,11 @@ namespace Biomata.Integration
 
         private readonly List<UnityAgentBridge> _bridges = new List<UnityAgentBridge>();
         private CancellationTokenSource _cts;
-        private float    _timeSinceLastTick;
+        private TickAccumulator _tickAccum;
         private bool     _tickInProgress;
-        private TickMode _tickMode = TickMode.Internal;
+        private bool     _autoTicking = true;
+        private bool     _paused      = false;
+        private TickMode _tickMode    = TickMode.Internal;
 
         // Reusable per-tick buffers — avoid GC allocations every tick at 500 agents.
         // GatherObservations clears and refills _observationBuffer each tick.
@@ -146,8 +217,6 @@ namespace Biomata.Integration
         // BuildWorldMetadata returns a reference to this dict; in-place updates avoid
         // a fresh Dictionary allocation per tick.
         private readonly Dictionary<string, object> _metadataBuffer = new Dictionary<string, object>(4);
-
-        private float TickInterval => tickRate > 0f ? 1f / tickRate : float.Epsilon;
 
         // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -164,8 +233,10 @@ namespace Biomata.Integration
 
         private void Start()
         {
-            if (autoConnect)
-                Connect();
+            // BiomataSimulationBootstrapper.ApplyManagerConfig() runs in its Awake —
+            // which Unity guarantees completes before any Start() fires — and passes
+            // autoConnect:false via Configure(). So if BSB is present, this is a no-op.
+            if (autoConnect) Connect();
         }
 
         private void FixedUpdate()
@@ -184,12 +255,9 @@ namespace Biomata.Integration
         {
             if (_tickMode == TickMode.External) return;
             if (!IsConnected || _tickInProgress) return;
-
-            _timeSinceLastTick += dt;
-            if (_timeSinceLastTick < TickInterval) return;
-
-            _timeSinceLastTick = 0f;
-            StartCoroutine(TickCoroutine());
+            if (!_autoTicking || _paused) return;
+            if (_tickAccum.Advance(dt, tickRate))
+                StartCoroutine(TickCoroutine());
         }
 
         private void OnDestroy()
@@ -203,6 +271,32 @@ namespace Biomata.Integration
         }
 
         // ── Connection ────────────────────────────────────────────────────────────
+
+        private BiomataConfig BuildConfig() => BiomataConfig.FromInspector(
+            host, port, useTls, connectTimeoutSeconds, defaultCallTimeoutSeconds,
+            new RetryConfig
+            {
+                MaxAttempts         = retryMaxAttempts,
+                InitialDelaySeconds = retryInitialDelaySeconds,
+                MaxDelaySeconds     = retryMaxDelaySeconds,
+                Multiplier          = retryMultiplier,
+            });
+
+        private void WireEventStream(CancellationToken ct)
+        {
+            var events = Client.Events;
+            events.OnDisconnected += ex => OnStreamDisconnected?.Invoke(ex);
+            events.OnFailed       += ex => OnStreamFailed?.Invoke(ex);
+            events.OnAll(ev => OnSimulationEvent?.Invoke(ev));
+            if (autoStartEventStream)
+            {
+                if (subscribeTickEnd)
+                    events.On("tick_end", ev => OnTickEnd?.Invoke(ev));
+                if (subscribeActionCompleted)
+                    events.On("action_completed", ev => OnActionCompleted?.Invoke(ev));
+            }
+            _ = events.StartAsync(ct);
+        }
 
         /// <summary>
         /// Open the backend connection. Called automatically when <see cref="autoConnect"/> is true.
@@ -221,15 +315,7 @@ namespace Biomata.Integration
         {
             _cts = new CancellationTokenSource();
 
-            var config = new BiomataConfig
-            {
-                Host                  = host,
-                Port                  = port,
-                UseTls                = useTls,
-                ConnectTimeoutSeconds = connectTimeoutSeconds,
-            };
-
-            Client = new SimulationClient(config);
+            Client = new SimulationClient(BuildConfig());
             Client.OnStateChanged += s => Debug.Log($"[Biomata] {s}");
 
             var task = Client.ConnectAsync(_cts.Token);
@@ -261,28 +347,82 @@ namespace Biomata.Integration
                     "then reconnect. Agents that rely on role defaults will not register until the manifest " +
                     "is available. Error: " + rolesTask.Exception?.GetBaseException().Message);
 
-            // Subscribe to real-time events before the first tick.
-            Client.Events.OnAll(ev => OnSimulationEvent?.Invoke(ev));
-            _ = Client.Events.StartAsync(_cts.Token);
+            WireEventStream(_cts.Token);
 
             OnConnected?.Invoke();
             Debug.Log($"[Biomata] Connected to {host}:{port}");
         }
 
+        /// <summary>
+        /// Async variant of <see cref="Connect"/>. Awaitable from any async context or
+        /// button-click handlers. Connects, fetches roles, and wires the event stream.
+        /// </summary>
+        public async Task ConnectAsync(CancellationToken ct = default)
+        {
+            if (IsConnected) return;
+            _cts = new CancellationTokenSource();
+            Client = new SimulationClient(BuildConfig());
+            Client.OnStateChanged += s => Debug.Log($"[Biomata] {s}");
+            try
+            {
+                await Client.ConnectAsync(ct);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[Biomata] Connection to {host}:{port} failed: {ex.Message}");
+                Client.Dispose();
+                Client = null;
+                return;
+            }
+            var rolesResult = await Client.Roles.ListAsync(ct);
+            if (rolesResult != null) RoleManifestLoader.Populate(rolesResult);
+            WireEventStream(ct);
+            OnConnected?.Invoke();
+            Debug.Log($"[Biomata] Connected to {host}:{port}");
+        }
+
+        /// <summary>Async variant of <see cref="Disconnect"/>. Awaitable from any async context.</summary>
+        public async Task DisconnectAsync()
+        {
+            if (Client == null) return;
+            _cts?.Cancel();          // signal all pending async ops first
+            await Client.DisconnectAsync();
+            Client.Dispose();
+            Client = null;
+            _cts?.Dispose();         // release the token source
+            _cts = null;
+            NotifyDisconnected();
+        }
+
         private IEnumerator DisconnectCoroutine()
         {
             if (Client == null) yield break;
-
+            _cts?.Cancel();          // signal all pending async ops first
             var task = Client.DisconnectAsync();
             while (!task.IsCompleted)
                 yield return null;
-
             Client.Dispose();
             Client = null;
-            _cts?.Cancel();
+            _cts?.Dispose();         // release the token source
+            _cts = null;
+            NotifyDisconnected();
+        }
 
+        private void NotifyDisconnected()
+        {
+            _autoTicking = false;
+            _tickAccum.Reset();
             OnDisconnected?.Invoke();
             Debug.Log("[Biomata] Disconnected");
+            if (autoReconnect && _tickMode != TickMode.External)
+                StartCoroutine(ReconnectCoroutine());
+        }
+
+        private IEnumerator ReconnectCoroutine()
+        {
+            Debug.Log($"[Biomata] Reconnecting in {reconnectDelay:F1}s…");
+            yield return new WaitForSeconds(reconnectDelay);
+            Connect();
         }
 
         // ── Bridge registry ───────────────────────────────────────────────────────
@@ -298,17 +438,35 @@ namespace Biomata.Integration
         // ── Tick ──────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Controls whether the USM drives its own tick accumulator or defers
-        /// to an external caller (e.g. <see cref="BiomataSimulationBootstrapper"/>).
+        /// Controls who drives the tick accumulator.
         ///
-        /// When set to <see cref="TickMode.External"/> the internal accumulator in
-        /// FixedUpdate / Update is completely bypassed; only explicit
-        /// <see cref="ForceTick"/> calls advance the simulation. This makes scheduler
-        /// ownership explicit in object state rather than encoded as a magic tickRate
-        /// value, so <see cref="Configure"/> can no longer accidentally re-enable the
-        /// internal loop.
+        /// <see cref="TickMode.Internal"/>: USM fires ticks from its own FixedUpdate / Update loop
+        /// at the configured <c>tickRate</c>. Default for standalone use.<br/>
+        /// <see cref="TickMode.External"/>: <see cref="BiomataSimulationBootstrapper"/> calls
+        /// <see cref="ForceTick"/> directly; the internal loop is bypassed. USM also skips
+        /// its <c>autoConnect</c> logic in Start so BSB owns the connection lifecycle too.
         /// </summary>
         public void SetTickMode(TickMode mode) => _tickMode = mode;
+
+        /// <summary>
+        /// Enable or disable the automatic tick loop.
+        /// When <paramref name="enabled"/> is false the accumulator is reset so the next
+        /// <c>StartAutoTick</c> begins cleanly at zero elapsed time.
+        /// </summary>
+        public void SetAutoTick(bool enabled)
+        {
+            _autoTicking = enabled;
+            if (!enabled) _tickAccum.Reset();
+        }
+
+        /// <summary>
+        /// Pause or resume the tick loop without resetting the accumulator.
+        /// Has no effect when in <see cref="TickMode.External"/> mode.
+        /// </summary>
+        public void SetPaused(bool paused) => _paused = paused;
+
+        /// <summary>Change the tick rate at runtime (ticks per second). 0 = every frame.</summary>
+        public void SetTickRate(float rate) => tickRate = rate;
 
         /// <summary>
         /// Fire a tick immediately, bypassing the rate timer.
@@ -323,6 +481,7 @@ namespace Biomata.Integration
         private IEnumerator TickCoroutine()
         {
             _tickInProgress = true;
+            OnTickStarted?.Invoke();
             try
             {
                 var observations = GatherObservations();
@@ -411,6 +570,41 @@ namespace Biomata.Integration
             else
                 _metadataBuffer.Remove("world");
             return _metadataBuffer;
+        }
+
+        // ── Async convenience helpers ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Run one simulation tick. Gathers observations from all registered bridges and
+        /// optionally merges additional <paramref name="extraObservations"/> (e.g. off-scene agents).
+        /// </summary>
+        public Task<TickResult> TickAsync(
+            IEnumerable<AgentObservationData> extraObservations = null,
+            Dictionary<string, object>        worldMetadata     = null,
+            CancellationToken                 ct                = default)
+        {
+            if (!IsConnected)
+                throw new InvalidOperationException("Not connected. Call ConnectAsync first.");
+            var obs = GatherObservations();
+            if (extraObservations != null)
+                foreach (var o in extraObservations) obs.Add(o);
+            return Client.Ticks.TickAsync(obs, worldMetadata ?? BuildWorldMetadata(), ct);
+        }
+
+        /// <summary>Pause the server's autonomous run() loop.</summary>
+        public Task PauseAsync(CancellationToken ct = default)
+        {
+            if (!IsConnected)
+                throw new InvalidOperationException("Not connected. Call ConnectAsync first.");
+            return Client.Ticks.PauseAsync(ct);
+        }
+
+        /// <summary>Resume a paused server run() loop.</summary>
+        public Task ResumeAsync(CancellationToken ct = default)
+        {
+            if (!IsConnected)
+                throw new InvalidOperationException("Not connected. Call ConnectAsync first.");
+            return Client.Ticks.ResumeAsync(ct);
         }
     }
 }

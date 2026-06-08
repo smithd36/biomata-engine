@@ -1,0 +1,3 @@
+C:\Users\D\workspace\projects\biomata-engine\unity_sdk\Runtime\Integration\BiomataPOIData.cs
+C:\Users\D\workspace\projects\biomata-engine\unity_sdk\Runtime\Integration\Actions\MoveActionHandler.cs
+C:\Users\D\workspace\projects\biomata-engine\unity_sdk\Runtime\Integration\Actions\NavMeshMoveActionHandler.cs
