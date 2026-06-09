@@ -58,6 +58,48 @@ namespace Biomata.Integration.Actions
             ? _navAgent
             : (_navAgent = GetComponent<NavMeshAgent>());
 
+        // ── Public navigation API ─────────────────────────────────────────────
+
+        /// <summary>
+        /// Navigate to a world-space position, reusing all configured NavMesh settings.
+        /// Call from other action handlers (e.g. EatActionHandler) to delegate movement
+        /// without duplicating NavMesh logic.
+        /// </summary>
+        public IEnumerator NavigateTo(Vector3 destination, UnityAgentBridge bridge)
+        {
+            var agent = NavAgent;
+            if (agent == null) yield break;
+
+            agent.stoppingDistance = stoppingDistance;
+            agent.updateRotation   = false;
+            agent.SetDestination(destination);
+
+            float repathTimer = 0f;
+            while (true)
+            {
+                repathTimer += Time.deltaTime;
+                if (repathTimer >= repathInterval)
+                {
+                    repathTimer = 0f;
+                    agent.SetDestination(destination);
+                }
+
+                var flatVelocity = agent.velocity;
+                flatVelocity.y = 0f;
+                if (navRotateSpeed > 0f && flatVelocity.sqrMagnitude > 0.0001f)
+                {
+                    var targetRot = Quaternion.LookRotation(flatVelocity.normalized);
+                    bridge.transform.rotation = Quaternion.RotateTowards(
+                        bridge.transform.rotation, targetRot, navRotateSpeed * Time.deltaTime);
+                }
+
+                if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
+                    yield break;
+
+                yield return null;
+            }
+        }
+
         // ── Execution ─────────────────────────────────────────────────────────
 
         public override IEnumerator ExecuteCoroutine(AgentDecisionResult decision, UnityAgentBridge bridge)
