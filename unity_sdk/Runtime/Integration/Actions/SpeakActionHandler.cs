@@ -70,6 +70,15 @@ namespace Biomata.Integration.Actions
             CurrentSpeech = null;
         }
 
+        /// <inheritdoc/>
+        public override void OnInterrupted(UnityAgentBridge bridge)
+        {
+            // Speech was cut short by a new decision — clear state so the bubble/flag
+            // does not stay stuck on (the WaitForSeconds tail never ran).
+            IsSpeaking    = false;
+            CurrentSpeech = null;
+        }
+
         private static void RelayToTarget(AgentDecisionResult decision, UnityAgentBridge bridge, string text)
         {
             var manager = UnitySimulationManager.Instance;

@@ -121,6 +121,42 @@
         "survival"
       ],
       "execution_hint": "hybrid"
+    },
+    {
+      "name": "work",
+      "description": "Work at a nearby workstation such as the workbench to build or maintain the colony.",
+      "parameters": {
+        "target": "str?"
+      },
+      "required_capabilities": [],
+      "execution_hint": "hybrid"
+    },
+    {
+      "name": "sleep",
+      "description": "Sleep in a nearby bed to recover energy.",
+      "parameters": {
+        "target": "str?"
+      },
+      "required_capabilities": [],
+      "execution_hint": "hybrid"
+    },
+    {
+      "name": "warm",
+      "description": "Warm up and socialise at a nearby campfire.",
+      "parameters": {
+        "target": "str?"
+      },
+      "required_capabilities": [],
+      "execution_hint": "hybrid"
+    },
+    {
+      "name": "rest",
+      "description": "Rest in a nearby shelter such as a tent to recover.",
+      "parameters": {
+        "target": "str?"
+      },
+      "required_capabilities": [],
+      "execution_hint": "hybrid"
     }
   ]
 }

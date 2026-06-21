@@ -82,5 +82,45 @@ namespace Biomata.Integration.Actions
         /// Driven by <see cref="ActionExecutor"/> as a Unity coroutine.
         /// </summary>
         public abstract IEnumerator ExecuteCoroutine(AgentDecisionResult decision, UnityAgentBridge bridge);
+
+        // ── Interruption / re-targeting contract ──────────────────────────────────
+        //
+        // The backend issues a decision every tick, which is typically faster than an
+        // action takes to run (a multi-second walk vs a sub-second tick). To avoid
+        // stacking concurrent coroutines that fight over the same agent, the bridge
+        // runs at most ONE action per agent at a time and applies each new decision
+        // through the two hooks below. See UnityAgentBridge.ApplyDecision.
+
+        /// <summary>
+        /// When <c>true</c>, an already-running instance of this handler is updated in
+        /// place via <see cref="Retarget"/> when a new decision for an action this
+        /// handler also covers arrives — instead of being cancelled and restarted.
+        /// Keeps continuous actions (e.g. movement) smooth and prevents the agent from
+        /// stuttering or circling as fresh decisions stream in each tick.
+        ///
+        /// Default <c>false</c>: a new decision interrupts and restarts the action.
+        /// </summary>
+        public virtual bool CanRetarget => false;
+
+        /// <summary>
+        /// Apply an updated decision to an action that is already running, without
+        /// restarting its coroutine. Only called when <see cref="CanRetarget"/> is
+        /// <c>true</c> and the running handler also handles the new action's name.
+        /// Default: no-op.
+        /// </summary>
+        public virtual void Retarget(AgentDecisionResult decision, UnityAgentBridge bridge) { }
+
+        /// <summary>
+        /// Called when this handler's running action is cancelled because a different
+        /// decision arrived (not on normal completion). Override to release resources
+        /// or halt side effects that outlive the coroutine — for example, stopping a
+        /// <c>NavMeshAgent</c> that would otherwise keep walking, or clearing a
+        /// "speaking" flag. Default: no-op.
+        ///
+        /// Contract: if your handler causes the agent to keep moving after the
+        /// coroutine ends (directly, or by delegating to another handler), stop that
+        /// movement here so a following stationary action does not drift.
+        /// </summary>
+        public virtual void OnInterrupted(UnityAgentBridge bridge) { }
     }
 }

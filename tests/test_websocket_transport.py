@@ -166,6 +166,22 @@ class TestWebSocketHealthCheck:
                 assert result["tick"]          == 0
 
 
+class TestWebSocketActionsList:
+    async def test_actions_list_returns_registry_schemas(self):
+        # _make_sim registers a single "act" action — actions.list must surface it
+        # so Unity can validate handler coverage against the live backend.
+        sim     = _make_sim()
+        session = SimulationSession(sim)
+        async with _running_server(session) as (_, port):
+            async with websockets.connect(f"ws://127.0.0.1:{port}") as ws:
+                resp = await _request(ws, Method.ACTIONS_LIST)
+                assert resp["ok"] is True
+                result = resp["result"]
+                assert result["count"] == 1
+                names = [a["name"] for a in result["actions"]]
+                assert names == ["act"]
+
+
 class TestWebSocketTick:
     async def test_tick_returns_decisions(self):
         sim     = _make_sim()

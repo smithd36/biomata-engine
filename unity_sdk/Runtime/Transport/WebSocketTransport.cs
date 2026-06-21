@@ -64,6 +64,7 @@ namespace Biomata.SDK.Transport
         private const string M_SUBSCRIBE     = "subscribe_events";
         private const string M_UNSUBSCRIBE   = "unsubscribe_events";
         private const string M_ROLES_LIST    = "roles.list";
+        private const string M_ACTIONS_LIST  = "actions.list";
 
         private readonly BiomataConfig _config;
         private readonly string        _url;
@@ -564,6 +565,34 @@ namespace Biomata.SDK.Transport
             else
             {
                 data.roles = Array.Empty<RoleEntry>();
+            }
+            return data;
+        }
+
+        public async Task<ManifestData> ActionsListAsync(CancellationToken ct = default)
+        {
+            var r = await RequestAsync(M_ACTIONS_LIST, null, ct);
+            var data = new ManifestData { version = (string)r["version"] ?? "1" };
+            var arr  = r["actions"] as JArray;
+            if (arr != null)
+            {
+                var entries = new List<ManifestActionEntry>(arr.Count);
+                foreach (var item in arr)
+                {
+                    if (!(item is JObject o)) continue;
+                    entries.Add(new ManifestActionEntry
+                    {
+                        name                  = (string)o["name"] ?? string.Empty,
+                        description           = (string)o["description"],
+                        kind                  = (string)o["execution_hint"],
+                        required_capabilities = (o["required_capabilities"] as JArray)?.ToObject<string[]>() ?? Array.Empty<string>(),
+                    });
+                }
+                data.actions = entries.ToArray();
+            }
+            else
+            {
+                data.actions = Array.Empty<ManifestActionEntry>();
             }
             return data;
         }

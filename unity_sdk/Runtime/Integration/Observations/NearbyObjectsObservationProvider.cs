@@ -133,7 +133,8 @@ namespace Biomata.Integration.Observations
             foreach (var (t, data) in _objects)
             {
                 if (t == null) continue;
-                if (data != null && !data.IsActive) continue;   // skip depleted / inactive
+                if (!t.gameObject.activeInHierarchy) continue;   // skip despawned / depleted (SetActive(false)) objects
+                if (data != null && !data.IsActive) continue;   // skip data-flagged depleted / inactive
 
                 float sqrDist = (t.position - agentPos).sqrMagnitude;
                 if (sqrDist <= sqrRadius)

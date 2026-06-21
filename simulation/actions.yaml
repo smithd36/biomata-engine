@@ -126,9 +126,46 @@ actions:
   # ── Personal actions ─────────────────────────────────────────────────────────
 
   - name: eat
-    description: Consume a nearby food item to restore energy.
+    description: >-
+      Consume a nearby food item to reduce hunger. Only choose this when
+      nearby_food lists at least one item (check nearby_food_count); if no food
+      is nearby it will fail, so move to find food or tend another need instead.
     parameters:
       target: str        # name of the food item or source
     required_capabilities: [survival]   # or omit if all agents can eat
     engine_command: eat
+    kind: hybrid
+
+  # ── POI station actions ────────────────────────────────────────────────────
+  # Each maps to a POIStation component in Unity (see UsePoiActionHandler). The
+  # agent walks to the matching POI, then engages it for the station's duration.
+  # 'target' is optional: omit to use the nearest matching station, or name a
+  # specific POI (e.g. "Workbench", "Bed_2"). Universal — no capability gating.
+
+  - name: work
+    description: Work at a nearby workstation such as the workbench to build or maintain the colony.
+    parameters:
+      target: str?       # name of the workstation; omit for the nearest one
+    engine_command: interact
+    kind: hybrid
+
+  - name: sleep
+    description: Sleep in a nearby bed to recover energy.
+    parameters:
+      target: str?
+    engine_command: interact
+    kind: hybrid
+
+  - name: warm
+    description: Warm up and socialise at a nearby campfire.
+    parameters:
+      target: str?
+    engine_command: interact
+    kind: hybrid
+
+  - name: rest
+    description: Rest in a nearby shelter such as a tent to recover.
+    parameters:
+      target: str?
+    engine_command: interact
     kind: hybrid

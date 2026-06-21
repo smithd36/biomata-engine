@@ -66,24 +66,30 @@ namespace Biomata.Integration.Observations
             {
                 var entry = new Dictionary<string, object>
                 {
-                    ["id"]   = _candidates[i].agentId,
-                    ["name"] = _candidates[i].agentName,
+                    [ObservationKeys.EntryId]   = _candidates[i].agentId,
+                    [ObservationKeys.EntryName] = _candidates[i].agentName,
                 };
                 if (includeDistances && i == 0)
-                    entry["distance"] = (double)Mathf.Sqrt(_candidates[i].sqrDist);
+                    entry[ObservationKeys.EntryDistance] = (double)Mathf.Sqrt(_candidates[i].sqrDist);
                 entries.Add(entry);
             }
 
-            observation["nearby_agents"]      = entries;
-            observation["nearby_agent_count"] = count;
+            observation[ObservationKeys.NearbyAgents]     = entries;
+            observation[ObservationKeys.NearbyAgentCount] = count;
 
             if (count > 0)
             {
-                observation["nearest_agent_id"] = _candidates[0].agentId;
+                observation[ObservationKeys.NearestAgentId] = _candidates[0].agentId;
                 if (includeDistances)
-                    observation["nearest_agent_distance"] = (double)Mathf.Sqrt(_candidates[0].sqrDist);
+                    observation[ObservationKeys.NearestAgentDistance] = (double)Mathf.Sqrt(_candidates[0].sqrDist);
             }
         }
+
+        public override IReadOnlyCollection<string> DeclaredObservationKeys => new[]
+        {
+            ObservationKeys.NearbyAgents, ObservationKeys.NearbyAgentCount,
+            ObservationKeys.NearestAgentId, ObservationKeys.NearestAgentDistance,
+        };
 
         private void OnDrawGizmosSelected()
         {

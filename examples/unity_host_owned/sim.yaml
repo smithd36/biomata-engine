@@ -10,13 +10,14 @@ registry:
   class: src.plugins.unity_host_owned.registry.build_registry
 
 roles:
-  Villager:
+  Colonist:
     capabilities: [social]
     brain:
       provider: ollama
       config:
         model: qwen2.5:14b
     observations:
+      - nearby_agents
       - position
       - nearby_food
       - hunger

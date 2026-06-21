@@ -21,18 +21,24 @@ namespace Biomata.Integration.Observations
         public override void Populate(Dictionary<string, object> observation)
         {
             var p = transform.position;
-            observation["position_x"] = (double)p.x;
-            observation["position_y"] = (double)p.y;
-            observation["position_z"] = (double)p.z;
+            observation[ObservationKeys.PositionX] = (double)p.x;
+            observation[ObservationKeys.PositionY] = (double)p.y;
+            observation[ObservationKeys.PositionZ] = (double)p.z;
 
             if (includeRotation)
-                observation["rotation_y"] = (double)transform.eulerAngles.y;
+                observation[ObservationKeys.RotationY] = (double)transform.eulerAngles.y;
 
             if (includeVelocity && _rb != null)
             {
-                observation["velocity_x"] = (double)_rb.linearVelocity.x;
-                observation["velocity_z"] = (double)_rb.linearVelocity.z;
+                observation[ObservationKeys.VelocityX] = (double)_rb.linearVelocity.x;
+                observation[ObservationKeys.VelocityZ] = (double)_rb.linearVelocity.z;
             }
         }
+
+        public override IReadOnlyCollection<string> DeclaredObservationKeys => new[]
+        {
+            ObservationKeys.PositionX, ObservationKeys.PositionY, ObservationKeys.PositionZ,
+            ObservationKeys.RotationY, ObservationKeys.VelocityX, ObservationKeys.VelocityZ,
+        };
     }
 }

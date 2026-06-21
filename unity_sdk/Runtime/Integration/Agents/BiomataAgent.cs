@@ -79,8 +79,14 @@ namespace Biomata.Integration
         [SerializeField] private string memoryClass = "";
 
         [Tooltip(
+            "Reusable personality + LLM settings asset (Create ▸ Biomata ▸ Brain Config). " +
+            "Preferred over the raw JSON below; if both are set, JSON keys layer on top.")]
+        [SerializeField] private BrainConfig brainConfigAsset;
+
+        [Tooltip(
             "JSON object forwarded to the brain constructor as keyword arguments.\n" +
-            "Example: {\"model\": \"qwen2.5:14b\", \"temperature\": 0.7}")]
+            "Example: {\"model\": \"qwen2.5:14b\", \"temperature\": 0.7}\n" +
+            "Use the Brain Config asset above instead where possible; this is for brain-specific extras.")]
         [TextArea(3, 8)]
         [SerializeField] private string brainConfigJson = "";
 
@@ -187,7 +193,7 @@ namespace Biomata.Integration
                 ? capabilities
                 : Array.Empty<string>();
             var resolvedBrainClass  = brainClass;
-            var resolvedBrainConfig = ParseJsonConfig(brainConfigJson);
+            var resolvedBrainConfig = BuildBrainConfig();
 
             if (!string.IsNullOrEmpty(role))
             {
@@ -251,9 +257,9 @@ namespace Biomata.Integration
 
             var collector = GetComponent<ObservationCollector>();
             if (!string.IsNullOrEmpty(role))
-                collector.SetData("role", role);
+                collector.SetData(Observations.ObservationKeys.Role, role);
             if (resolvedCapabilities.Length > 0)
-                collector.SetData("capabilities", resolvedCapabilities);
+                collector.SetData(Observations.ObservationKeys.Capabilities, resolvedCapabilities);
 
             ValidateAtRuntime(_resolvedId);
         }
@@ -373,6 +379,23 @@ namespace Biomata.Integration
                         $"[BiomataAgent] Duplicate agent ID '{resolvedId}' on " +
                         $"'{name}' and '{other.name}'. Registration may fail.", this);
             }
+        }
+
+        /// <summary>
+        /// Merge the structured <see cref="BrainConfig"/> asset with the raw JSON blob.
+        /// Asset is the base; JSON keys override, so authors can keep a shared personality
+        /// asset and tweak per-agent extras in JSON. Returns null when neither is set.
+        /// </summary>
+        private Dictionary<string, object> BuildBrainConfig()
+        {
+            var fromAsset = brainConfigAsset != null ? brainConfigAsset.ToConfigDictionary() : null;
+            var fromJson  = ParseJsonConfig(brainConfigJson);
+
+            if (fromAsset == null) return fromJson;
+            if (fromJson  == null) return fromAsset;
+
+            foreach (var kv in fromJson) fromAsset[kv.Key] = kv.Value;
+            return fromAsset;
         }
 
         private static Dictionary<string, object> ParseJsonConfig(string json)

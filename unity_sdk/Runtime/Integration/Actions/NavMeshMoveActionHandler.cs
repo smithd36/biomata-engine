@@ -52,11 +52,23 @@ namespace Biomata.Integration.Actions
         [Min(0f)]
         [SerializeField] private float navRotateSpeed = 360f;
 
+        [Tooltip(
+            "When the requested destination is off the NavMesh (e.g. the centre of a " +
+            "solid prop a POI sits on), snap it to the nearest NavMesh point within this " +
+            "radius so the agent has a reachable target. 0 = use the raw destination.")]
+        [Min(0f)]
+        [SerializeField] private float navSampleRadius = 2f;
+
         // Lazy cache — avoids Awake ordering concerns with the parent's private Awake.
         private NavMeshAgent _navAgent;
         private NavMeshAgent NavAgent => _navAgent != null
             ? _navAgent
             : (_navAgent = GetComponent<NavMeshAgent>());
+
+        // Current goal, read live by the drive loop so Retarget() can steer an
+        // in-flight move without restarting its coroutine.
+        private Vector3 _destination;
+        private bool    _warnedOffMesh;
 
         // ── Public navigation API ─────────────────────────────────────────────
 
@@ -67,46 +79,15 @@ namespace Biomata.Integration.Actions
         /// </summary>
         public IEnumerator NavigateTo(Vector3 destination, UnityAgentBridge bridge)
         {
-            var agent = NavAgent;
-            if (agent == null) yield break;
-
-            agent.stoppingDistance = stoppingDistance;
-            agent.updateRotation   = false;
-            agent.SetDestination(destination);
-
-            float repathTimer = 0f;
-            while (true)
-            {
-                repathTimer += Time.deltaTime;
-                if (repathTimer >= repathInterval)
-                {
-                    repathTimer = 0f;
-                    agent.SetDestination(destination);
-                }
-
-                var flatVelocity = agent.velocity;
-                flatVelocity.y = 0f;
-                if (navRotateSpeed > 0f && flatVelocity.sqrMagnitude > 0.0001f)
-                {
-                    var targetRot = Quaternion.LookRotation(flatVelocity.normalized);
-                    bridge.transform.rotation = Quaternion.RotateTowards(
-                        bridge.transform.rotation, targetRot, navRotateSpeed * Time.deltaTime);
-                }
-
-                if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
-                    yield break;
-
-                yield return null;
-            }
+            _destination = ResolveOnNavMesh(destination);
+            yield return DriveToDestination(bridge);
         }
 
         // ── Execution ─────────────────────────────────────────────────────────
 
         public override IEnumerator ExecuteCoroutine(AgentDecisionResult decision, UnityAgentBridge bridge)
         {
-            var agent = NavAgent;
-
-            if (agent == null)
+            if (NavAgent == null)
             {
                 Debug.LogError(
                     $"[NavMeshMoveActionHandler] '{gameObject.name}' is missing a NavMeshAgent. " +
@@ -117,21 +98,80 @@ namespace Biomata.Integration.Actions
             var target = ExtractTarget(decision);
             if (target == null) yield break;
 
-            agent.stoppingDistance = stoppingDistance;
-            agent.updateRotation   = false;  // manual rotation below
+            _destination = ResolveOnNavMesh(target.Value);
+            yield return DriveToDestination(bridge);
+        }
 
-            agent.SetDestination(target.Value);
+        // ── Re-targeting / interruption ─────────────────────────────────────────
+
+        /// <summary>Movement is continuous: stream new destinations in without restarting.</summary>
+        public override bool CanRetarget => true;
+
+        /// <inheritdoc/>
+        public override void Retarget(AgentDecisionResult decision, UnityAgentBridge bridge)
+        {
+            var target = ExtractTarget(decision);
+            if (target == null) return;
+
+            _destination = ResolveOnNavMesh(target.Value);
+            var agent = NavAgent;
+            if (agent != null && agent.isOnNavMesh)
+                agent.SetDestination(_destination);   // drive loop picks it up; no restart
+        }
+
+        /// <inheritdoc/>
+        public override void OnInterrupted(UnityAgentBridge bridge)
+        {
+            // Stop the agent so a following stationary action (idle/speak/interact) does
+            // not keep drifting toward the cancelled destination.
+            var agent = NavAgent;
+            if (agent != null && agent.isOnNavMesh)
+            {
+                agent.ResetPath();
+                agent.velocity = Vector3.zero;
+            }
+        }
+
+        // ── Shared drive loop ───────────────────────────────────────────────────
+
+        /// <summary>
+        /// Steer the NavMeshAgent toward <see cref="_destination"/> until it arrives or
+        /// the destination is proven unreachable. Reads the field every frame so
+        /// <see cref="Retarget"/> can change the goal mid-flight.
+        /// </summary>
+        private IEnumerator DriveToDestination(UnityAgentBridge bridge)
+        {
+            var agent = NavAgent;
+            if (agent == null) yield break;
+
+            if (!agent.isOnNavMesh)
+            {
+                if (!_warnedOffMesh)
+                {
+                    _warnedOffMesh = true;
+                    Debug.LogWarning(
+                        $"[NavMeshMoveActionHandler] '{gameObject.name}' is not on a baked NavMesh — " +
+                        "agent cannot move. Bake a NavMesh (Window → AI → Navigation) and ensure the " +
+                        "agent spawns on it.", this);
+                }
+                yield break;
+            }
+            _warnedOffMesh = false;
+
+            agent.stoppingDistance = stoppingDistance;
+            agent.updateRotation   = false;  // manual yaw below
+            agent.SetDestination(_destination);
 
             float repathTimer = 0f;
-
             while (true)
             {
-                // Re-issue the destination periodically to recover from path invalidation.
+                // Re-issue periodically to recover from path invalidation (and to pick up
+                // a destination changed by Retarget on a frame between repaths).
                 repathTimer += Time.deltaTime;
                 if (repathTimer >= repathInterval)
                 {
                     repathTimer = 0f;
-                    agent.SetDestination(target.Value);
+                    agent.SetDestination(_destination);
                 }
 
                 // Manual yaw — rotate toward the agent's current velocity direction.
@@ -144,12 +184,32 @@ namespace Biomata.Integration.Actions
                         bridge.transform.rotation, targetRot, navRotateSpeed * Time.deltaTime);
                 }
 
-                // Arrival check — wait until path is computed and we are close enough.
-                if (!agent.pathPending && agent.remainingDistance <= agent.stoppingDistance)
-                    yield break;
+                // Arrival / termination — only valid once the path is computed.
+                if (!agent.pathPending)
+                {
+                    // Unreachable target (blocked, or off-mesh beyond navSampleRadius):
+                    // stop at the closest reachable point instead of looping forever on
+                    // a remainingDistance that never drops (or stays Infinity).
+                    if (agent.pathStatus != NavMeshPathStatus.PathComplete)
+                        yield break;
+                    if (agent.remainingDistance <= agent.stoppingDistance)
+                        yield break;
+                }
 
                 yield return null;
             }
+        }
+
+        /// <summary>
+        /// Snap a requested destination onto the NavMesh so it is reachable. Falls back
+        /// to the raw point when sampling is disabled or finds no mesh nearby.
+        /// </summary>
+        private Vector3 ResolveOnNavMesh(Vector3 raw)
+        {
+            if (navSampleRadius > 0f &&
+                NavMesh.SamplePosition(raw, out var hit, navSampleRadius, NavMesh.AllAreas))
+                return hit.position;
+            return raw;
         }
 
         /// <summary>

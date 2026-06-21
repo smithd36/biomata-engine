@@ -104,6 +104,13 @@ namespace Biomata.Integration
         private ActionExecutor          _executor;
         private UnitySimulationManager  _manager;
 
+        // The single in-flight action coroutine for this agent, or null when idle.
+        // Backend decisions arrive every tick (faster than most actions complete), so
+        // we keep exactly one action running and replace/retarget it rather than
+        // starting a new coroutine each tick — which previously stacked many concurrent
+        // actions that fought over the same NavMeshAgent (jitter, circling, pacing).
+        private Coroutine _activeAction;
+
         // Set via Configure(); forwarded to AgentRegistration on register.
         private Dictionary<string, object> _brainConfig;
         private Dictionary<string, object> _memoryConfig;
@@ -283,14 +290,29 @@ namespace Biomata.Integration
                 return;
             }
 
+            // 1. If a re-targetable action (e.g. movement) is already running and also
+            //    handles this decision, update it in place — no restart, no stutter.
+            if (_activeAction != null && _executor != null && _executor.TryRetarget(decision, this))
+                return;
+
+            // 2. Otherwise cancel any in-flight action (letting its handler clean up via
+            //    OnInterrupted) and start the new one. Exactly one action runs at a time.
+            if (_activeAction != null)
+            {
+                StopCoroutine(_activeAction);
+                _executor?.CancelRunning(this);
+                _activeAction = null;
+            }
+
             OnActionStarted?.Invoke(decision.Action);
-            StartCoroutine(ExecuteDecisionCoroutine(decision));
+            _activeAction = StartCoroutine(ExecuteDecisionCoroutine(decision));
         }
 
         private IEnumerator ExecuteDecisionCoroutine(AgentDecisionResult decision)
         {
             if (_executor != null)
                 yield return _executor.ExecuteCoroutine(decision, this);
+            _activeAction = null;
             OnActionCompleted?.Invoke(decision.Action);
         }
 

@@ -212,10 +212,6 @@ namespace Biomata.Integration.Actions
                     TryGetStr(cmd, "anchor", out var anchorName);
                     var poiData     = t.GetComponent<BiomataPOIData>();
                     var anchorWorld = poiData?.GetWorldAnchor(anchorName ?? "approach");
-                    Debug.Log(
-                        $"[MoveActionHandler] Path3: dest='{dest}' anchor='{anchorName ?? "approach"}' " +
-                        $"resolved={anchorWorld?.ToString() ?? $"NULL — falling back to t.position {t.position}"}",
-                        this);
                     return anchorWorld ?? t.position;
                 }
 

@@ -51,5 +51,18 @@ namespace Biomata.Integration.Observations
         /// Called once per simulation tick by <see cref="ObservationCollector"/>.
         /// </summary>
         public abstract void Populate(Dictionary<string, object> observation);
+
+        /// <summary>
+        /// The fixed top-level observation keys this provider writes — its half of the
+        /// observation contract (see <see cref="ObservationKeys"/>). Used by the editor
+        /// validator (<c>Biomata &gt; Validate Observation Contract</c>) to surface the keys
+        /// an agent emits and to flag two providers colliding on the same key.
+        ///
+        /// Default: empty. Override in providers with a stable key set. Providers whose keys
+        /// are configurable or per-element dynamic (POIs, nearby objects, needs) may return
+        /// empty — they opt out of static collision checking.
+        /// </summary>
+        public virtual IReadOnlyCollection<string> DeclaredObservationKeys =>
+            System.Array.Empty<string>();
     }
 }

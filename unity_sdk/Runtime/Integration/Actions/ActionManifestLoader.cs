@@ -26,10 +26,28 @@ namespace Biomata.Integration.Actions
         private const string ResourceName = "BiomataActions";
 
         private static ManifestData _cache;
+        private static bool         _fromRpc;   // true when populated via Populate()
 
         /// <summary>
-        /// Load the manifest from Resources. Returns null if not found.
-        /// Result is cached after first call.
+        /// Seed the manifest from the <c>actions.list</c> RPC — the backend's live action
+        /// space. Called by <see cref="Biomata.Integration.Simulation.UnitySimulationManager"/>
+        /// right after connect so validation runs against what the backend actually loaded,
+        /// not a committed JSON sidecar that may have drifted from the current sim.yaml.
+        /// Supersedes any Resources fallback.
+        /// </summary>
+        public static void Populate(ManifestData data)
+        {
+            _cache   = data;
+            _fromRpc = true;
+        }
+
+        /// <summary>True when the cache came from the backend RPC rather than Resources.</summary>
+        public static bool IsFromBackend => _fromRpc;
+
+        /// <summary>
+        /// Load the manifest. Returns the RPC-populated data when available; otherwise
+        /// falls back to Resources/BiomataActions.json (editor / offline). Cached after
+        /// first call.
         /// </summary>
         public static ManifestData Load()
         {
@@ -88,8 +106,45 @@ namespace Biomata.Integration.Actions
             }
         }
 
+        /// <summary>
+        /// Connect-time negotiation: warn about any backend action that no
+        /// <see cref="ActionHandlerBase"/> anywhere in the scene can execute. Catches the
+        /// "added an action to sim.yaml but forgot the Unity handler" drift at connect time
+        /// instead of via an agent stuck on an unhandled decision.
+        ///
+        /// Call after <see cref="Populate"/>. Does nothing if the manifest is unavailable.
+        /// </summary>
+        public static void ValidateScene()
+        {
+            var manifest = Load();
+            if (manifest?.actions == null || manifest.actions.Length == 0) return;
+
+            var executors = UnityEngine.Object.FindObjectsByType<ActionExecutor>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+            var covered = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ex in executors)
+                foreach (var h in ex.GetComponents<ActionHandlerBase>())
+                    foreach (var n in h.DeclaredActionNames)
+                        covered.Add(n);
+
+            var source = _fromRpc ? "backend" : "BiomataActions.json";
+            foreach (var action in manifest.actions)
+            {
+                if (!covered.Contains(action.name))
+                    Debug.LogWarning(
+                        $"[Biomata] {source} declares action '{action.name}' but no handler in the " +
+                        "scene covers it. Add an ActionHandlerBase component (or override " +
+                        "DeclaredActionNames) on the agents expected to perform it.");
+            }
+        }
+
         /// <summary>Reset the in-memory cache. Useful in play-mode tests.</summary>
-        public static void ClearCache() => _cache = null;
+        public static void ClearCache()
+        {
+            _cache   = null;
+            _fromRpc = false;
+        }
     }
 }
 

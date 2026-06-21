@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Biomata.Integration.Actions;
 using Biomata.Integration.Simulation;
 using Biomata.SDK;
 using Biomata.SDK.Clients;
@@ -347,6 +348,18 @@ namespace Biomata.Integration
                     "then reconnect. Agents that rely on role defaults will not register until the manifest " +
                     "is available. Error: " + rolesTask.Exception?.GetBaseException().Message);
 
+            // Fetch the backend's live action space and surface handler/manifest drift now,
+            // at connect time, rather than via an agent stuck on an unhandled decision.
+            var actionsTask = Client.Actions.ListAsync(_cts.Token);
+            while (!actionsTask.IsCompleted)
+                yield return null;
+
+            if (!actionsTask.IsFaulted && actionsTask.Result != null)
+            {
+                ActionManifestLoader.Populate(actionsTask.Result);
+                ActionManifestLoader.ValidateScene();
+            }
+
             WireEventStream(_cts.Token);
 
             OnConnected?.Invoke();
@@ -376,6 +389,14 @@ namespace Biomata.Integration
             }
             var rolesResult = await Client.Roles.ListAsync(ct);
             if (rolesResult != null) RoleManifestLoader.Populate(rolesResult);
+
+            var actionsResult = await Client.Actions.ListAsync(ct);
+            if (actionsResult != null)
+            {
+                ActionManifestLoader.Populate(actionsResult);
+                ActionManifestLoader.ValidateScene();
+            }
+
             WireEventStream(ct);
             OnConnected?.Invoke();
             Debug.Log($"[Biomata] Connected to {host}:{port}");

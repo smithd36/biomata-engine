@@ -21,6 +21,7 @@ namespace Biomata.Integration.Editor
         private SerializedProperty _capabilities;
         private SerializedProperty _brainClass;
         private SerializedProperty _memoryClass;
+        private SerializedProperty _brainConfigAsset;
         private SerializedProperty _brainConfigJson;
         private SerializedProperty _memoryConfigJson;
         private SerializedProperty _autoRegister;
@@ -39,6 +40,7 @@ namespace Biomata.Integration.Editor
             _capabilities    = serializedObject.FindProperty("capabilities");
             _brainClass      = serializedObject.FindProperty("brainClass");
             _memoryClass     = serializedObject.FindProperty("memoryClass");
+            _brainConfigAsset = serializedObject.FindProperty("brainConfigAsset");
             _brainConfigJson  = serializedObject.FindProperty("brainConfigJson");
             _memoryConfigJson = serializedObject.FindProperty("memoryConfigJson");
             _autoRegister    = serializedObject.FindProperty("autoRegister");
@@ -80,6 +82,7 @@ namespace Biomata.Integration.Editor
                 EditorGUILayout.LabelField("Brain", EditorStyles.boldLabel);
                 EditorGUILayout.PropertyField(_brainClass,     new GUIContent("Brain Class"));
                 EditorGUILayout.PropertyField(_memoryClass,    new GUIContent("Memory Class"));
+                EditorGUILayout.PropertyField(_brainConfigAsset, new GUIContent("Brain Config (Asset)"));
                 EditorGUILayout.PropertyField(_brainConfigJson,  new GUIContent("Brain Config (JSON)"));
                 EditorGUILayout.PropertyField(_memoryConfigJson, new GUIContent("Memory Config (JSON)"));
                 DrawBrainSourceHint();

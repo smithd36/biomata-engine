@@ -56,18 +56,23 @@ namespace Biomata.Integration.Observations
 
         public override void Populate(Dictionary<string, object> observation)
         {
-            observation["sim_time"] = (double)Time.time;
+            observation[ObservationKeys.SimTime] = (double)Time.time;
 
             if (dayLengthSeconds > 0f)
             {
-                float fraction             = (Time.time % dayLengthSeconds) / dayLengthSeconds;
-                observation["time_of_day"] = useHourFormat
+                float fraction = (Time.time % dayLengthSeconds) / dayLengthSeconds;
+                observation[ObservationKeys.TimeOfDay] = useHourFormat
                     ? (object)(double)(fraction * 24f)
                     : (object)(double)fraction;
             }
 
             if (includeFrameCount)
-                observation["frame_count"] = Time.frameCount;
+                observation[ObservationKeys.FrameCount] = Time.frameCount;
         }
+
+        public override IReadOnlyCollection<string> DeclaredObservationKeys => new[]
+        {
+            ObservationKeys.SimTime, ObservationKeys.TimeOfDay, ObservationKeys.FrameCount,
+        };
     }
 }

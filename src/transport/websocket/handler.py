@@ -246,6 +246,8 @@ class ConnectionHandler:
             return self._handle_agent_list()
         if method == Method.ROLES_LIST:
             return self._handle_roles_list()
+        if method == Method.ACTIONS_LIST:
+            return self._handle_actions_list()
         raise ProtocolError(f"unknown method '{method}'", ErrorCode.METHOD_NOT_FOUND)
 
     # ── Method handlers ───────────────────────────────────────────────────────
@@ -569,6 +571,24 @@ class ConnectionHandler:
                 "brain_class":    brain_class,
             })
         return {"version": "1", "roles": role_list, "count": len(role_list)}
+
+    def _handle_actions_list(self) -> dict[str, Any]:
+        """
+        Live action space of the running simulation — the authoritative source of truth
+        for what verbs agents can execute. Mirrors the BiomataActions.json shape so Unity
+        can validate handler coverage against the backend at connect time instead of
+        trusting a possibly-stale committed JSON sidecar.
+        """
+        actions = [
+            {
+                "name":                  s.name,
+                "description":           s.description,
+                "required_capabilities": sorted(s.required_capabilities),
+                "execution_hint":        s.execution_hint.value,
+            }
+            for s in self._sim.registry.schemas()
+        ]
+        return {"version": "1", "actions": actions, "count": len(actions)}
 
     # ── Event subscription ────────────────────────────────────────────────────
 

@@ -18,9 +18,21 @@ namespace Biomata.Integration
     [AddComponentMenu("Biomata/Observation Collector")]
     public class ObservationCollector : MonoBehaviour
     {
+        [Tooltip(
+            "How many ticks an incoming message stays in 'incoming_messages' so the " +
+            "recipient has a fair chance to react. 1 = single-tick (old behaviour).")]
+        [Min(1)]
+        [SerializeField] private int messageLifetimeTicks = 4;
+
         private ObservationProviderBase[] _providers;
         private readonly Dictionary<string, object> _manual = new Dictionary<string, object>();
-        private readonly List<Dictionary<string, object>> _pendingMessages = new();
+
+        private sealed class PendingMessage
+        {
+            public Dictionary<string, object> Data;
+            public int TicksLeft;
+        }
+        private readonly List<PendingMessage> _pendingMessages = new();
 
         private void Awake() => _providers = GetComponents<ObservationProviderBase>();
 
@@ -41,17 +53,23 @@ namespace Biomata.Integration
 
         /// <summary>
         /// Queue an incoming speech message from another agent.
-        /// Queued messages are written as <c>incoming_messages</c> on the next
-        /// <see cref="Collect"/> call and then cleared so they appear exactly once.
+        /// The message is written as <c>incoming_messages</c> for the next
+        /// <see cref="messageLifetimeTicks"/> <see cref="Collect"/> calls (then dropped),
+        /// so the recipient gets several decision cycles to notice and reply instead of
+        /// a single tick.
         /// Called by <see cref="Actions.SpeakActionHandler"/> when this agent is the target.
         /// </summary>
         public void DeliverMessage(string fromId, string fromName, string text)
         {
-            _pendingMessages.Add(new Dictionary<string, object>
+            _pendingMessages.Add(new PendingMessage
             {
-                ["from"]      = fromId,
-                ["from_name"] = fromName,
-                ["text"]      = text,
+                Data = new Dictionary<string, object>
+                {
+                    [ObservationKeys.MsgFrom]     = fromId,
+                    [ObservationKeys.MsgFromName] = fromName,
+                    [ObservationKeys.MsgText]     = text,
+                },
+                TicksLeft = Mathf.Max(1, messageLifetimeTicks),
             });
         }
 
@@ -84,8 +102,15 @@ namespace Biomata.Integration
 
             if (_pendingMessages.Count > 0)
             {
-                obs["incoming_messages"] = new List<Dictionary<string, object>>(_pendingMessages);
-                _pendingMessages.Clear();
+                var msgs = new List<Dictionary<string, object>>(_pendingMessages.Count);
+                // Iterate backwards so we can drop expired messages in place.
+                for (int i = _pendingMessages.Count - 1; i >= 0; i--)
+                {
+                    msgs.Add(_pendingMessages[i].Data);
+                    if (--_pendingMessages[i].TicksLeft <= 0)
+                        _pendingMessages.RemoveAt(i);
+                }
+                obs[ObservationKeys.IncomingMessages] = msgs;
             }
 
             return obs;

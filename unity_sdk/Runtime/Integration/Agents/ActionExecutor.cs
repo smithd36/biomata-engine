@@ -27,12 +27,19 @@ namespace Biomata.Integration
     {
         private ActionHandlerBase[] _handlers;
 
+        /// <summary>The handler currently executing an action, or <c>null</c> when idle.</summary>
+        private ActionHandlerBase _running;
+
         private void Awake() => _handlers = GetComponents<ActionHandlerBase>();
 
         /// <summary>
         /// Coroutine that runs until the matching handler's execution completes.
         /// Logs a structured warning and yields immediately when no handler matches.
         /// Driven by <see cref="UnityAgentBridge"/>.
+        ///
+        /// The handler runs inline (<c>yield return handler.ExecuteCoroutine(...)</c>,
+        /// not a detached <c>StartCoroutine</c>) so the whole chain is a single
+        /// coroutine the bridge can stop atomically when a new decision interrupts it.
         /// </summary>
         public IEnumerator ExecuteCoroutine(AgentDecisionResult decision, UnityAgentBridge bridge)
         {
@@ -43,11 +50,48 @@ namespace Biomata.Integration
                 if (handler == null || !handler.isActiveAndEnabled) continue;
                 if (!handler.CanHandle(action)) continue;
 
-                yield return StartCoroutine(handler.ExecuteCoroutine(decision, bridge));
+                _running = handler;
+                try
+                {
+                    yield return handler.ExecuteCoroutine(decision, bridge);
+                }
+                finally
+                {
+                    // Clear only if still ours — a re-entrant start may have replaced it.
+                    if (_running == handler) _running = null;
+                }
                 yield break;
             }
 
             LogMissingHandler(action, bridge);
+        }
+
+        /// <summary>
+        /// If an action is running and its handler can re-target (<see cref="ActionHandlerBase.CanRetarget"/>)
+        /// and also covers the new decision's action, update it in place and return
+        /// <c>true</c>. Returns <c>false</c> when the running action must instead be
+        /// cancelled and replaced (call <see cref="CancelRunning"/> then start anew).
+        /// </summary>
+        public bool TryRetarget(AgentDecisionResult decision, UnityAgentBridge bridge)
+        {
+            if (_running == null || !_running.isActiveAndEnabled) return false;
+            var action = decision.Action ?? string.Empty;
+            if (!_running.CanRetarget || !_running.CanHandle(action)) return false;
+
+            _running.Retarget(decision, bridge);
+            return true;
+        }
+
+        /// <summary>
+        /// Notify the running handler that its action is being cancelled so it can halt
+        /// side effects (see <see cref="ActionHandlerBase.OnInterrupted"/>). Call after
+        /// the bridge stops the action coroutine.
+        /// </summary>
+        public void CancelRunning(UnityAgentBridge bridge)
+        {
+            if (_running == null) return;
+            _running.OnInterrupted(bridge);
+            _running = null;
         }
 
         /// <summary>Re-scan for handler components after runtime add/remove.</summary>
